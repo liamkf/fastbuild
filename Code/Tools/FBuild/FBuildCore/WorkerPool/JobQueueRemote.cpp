@@ -281,6 +281,13 @@ void JobQueueRemote::FinishedProcessingJob( Job * job, bool success )
 
 	ObjectNode * node = job->GetNode()->CastTo< ObjectNode >();
 
+	bool bStartedVSLog = false;
+	if (node->GetType() == Node::OBJECT_NODE || node->GetType() == Node::EXE_NODE || node->GetType() == Node::LIBRARY_NODE)
+	{
+		bStartedVSLog = true;
+		FLOG_VISUALIZER("START_JOB local \"%s\" \n", job->GetNode()->GetName().Get());
+	}
+
 	// remote tasks must output to a tmp file
 	if ( job->IsLocal() == false )
 	{
@@ -387,6 +394,10 @@ void JobQueueRemote::FinishedProcessingJob( Job * job, bool success )
 	// log processing time
 	node->AddProcessingTime( timeTakenMS );
 	
+	if (bStartedVSLog)
+	{
+		FLOG_VISUALIZER("FINISH_JOB %s local \"%s\" \n", result == Node::NODE_RESULT_FAILED ? "ERROR" : "SUCCESS", job->GetNode()->GetName().Get());
+	}
 	return result;
 }
 

@@ -537,6 +537,13 @@ void JobQueue::FinishedProcessingJob( Job * job, bool success, bool wasARemoteJo
 
 	Node * node = job->GetNode();
 
+	bool bStartedVSLog = false;
+	if (node->GetType() == Node::OBJECT_NODE || node->GetType() == Node::EXE_NODE || node->GetType() == Node::LIBRARY_NODE || node->GetType() == Node::DLL_NODE || node->GetType() == Node::CS_NODE)
+	{
+		bStartedVSLog = true;
+		FLOG_VISUALIZER("START_JOB local \"%s\" \n", job->GetNode()->GetName().Get());
+	}
+
 	// make sure the output path exists for files
 	// (but don't bother for input files)
 	if ( node->IsAFile() && ( node->GetType() != Node::FILE_NODE ) && ( node->GetType() != Node::COMPILER_NODE ) )
@@ -625,6 +632,11 @@ void JobQueue::FinishedProcessingJob( Job * job, bool success, bool wasARemoteJo
 	// log processing time
 	node->AddProcessingTime( timeTakenMS );
 
+	if (bStartedVSLog)
+	{
+		FLOG_VISUALIZER("FINISH_JOB %s local \"%s\" \n", result == Node::NODE_RESULT_FAILED ? "ERROR" : "SUCCESS", job->GetNode()->GetName().Get());
+	}
+	
 	return result;
 }
 
