@@ -603,6 +603,9 @@ void Server::FinalizeCompletedJobs()
 {
 	PROFILE_FUNCTION
 
+	Timer localTimer;
+	localTimer.Start();
+
 	JobQueueRemote & jcr = JobQueueRemote::Get();
 	while ( Job * job = jcr.GetCompletedJob() )
 	{
@@ -643,6 +646,11 @@ void Server::FinalizeCompletedJobs()
 		}
 
 		FDELETE job;
+
+		if (localTimer.GetElapsedMS() > Protocol::SERVER_STATUS_FREQUENCY_MS)
+		{
+			break;
+		}
 	}
 }
 
