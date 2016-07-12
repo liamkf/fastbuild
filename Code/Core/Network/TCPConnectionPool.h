@@ -79,7 +79,7 @@ public:
 	size_t GetNumConnections() const;
 
     // transmit data
-    bool Send( const ConnectionInfo * connection, const void * data, size_t size, uint32_t timeoutMS = 200000 );
+    bool Send( const ConnectionInfo * connection, const void * data, size_t size, uint32_t timeoutMS = 2000 );
     bool Broadcast( const void * data, size_t size );
 
 	static void GetAddressAsString( uint32_t addr, AString & address );
