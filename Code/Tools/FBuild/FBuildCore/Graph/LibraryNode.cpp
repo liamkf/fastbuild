@@ -302,6 +302,7 @@ void LibraryNode::EmitCompilationMessage( const Args & fullArgs ) const
 	NODE_LOAD_DEPS( 16,			staticDeps );
 	NODE_LOAD_NODE( Node,		precompiledHeader );
 	NODE_LOAD( AStackString<>,	objExtensionOverride );
+	NODE_LOAD( AStackString<>,	objNameOverride );
     NODE_LOAD( AStackString<>,	compilerOutputPrefix );
 	NODE_LOAD_DEPS( 0,			compilerForceUsing );
 	NODE_LOAD_DEPS( 0,			preBuildDependencies );
@@ -342,6 +343,7 @@ void LibraryNode::EmitCompilationMessage( const Args & fullArgs ) const
 								 preprocessorArgs,
 								 baseDirectory );
 	n->m_ObjExtensionOverride = objExtensionOverride;
+	n->m_ObjNameOverride = objNameOverride;
     n->m_CompilerOutputPrefix = compilerOutputPrefix;
     n->m_ExtraPDBPath = extraPDBPath;
     n->m_ExtraASMPath = extraASMPath;

@@ -69,6 +69,7 @@ protected:
 	Dependencies	m_CompilerForceUsing;
 	ObjectNode *	m_PrecompiledHeader;
 	AString			m_ObjExtensionOverride;
+	AString			m_ObjNameOverride;
     AString         m_CompilerOutputPrefix;
 	bool			m_DeoptimizeWritableFiles;
 	bool			m_DeoptimizeWritableFilesWithToken;

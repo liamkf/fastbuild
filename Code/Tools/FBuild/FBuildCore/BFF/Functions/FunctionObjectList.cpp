@@ -55,12 +55,14 @@ FunctionObjectList::FunctionObjectList()
 	AStackString<> compilerOutputPath;
     AStackString<> compilerOutputPrefix;
 	const BFFVariable * compilerOutputExtension;
+	const BFFVariable * compilerObjectNameOverride;
 	if ( !GetString( funcStartIter, compiler, ".Compiler", true ) ||
 		 !GetString( funcStartIter, compilerOptions, ".CompilerOptions", true ) ||
 		 !GetString( funcStartIter, compilerOptionsDeoptimized, ".CompilerOptionsDeoptimized", false ) ||
 		 !GetString( funcStartIter, compilerOutputPath, ".CompilerOutputPath", true ) ||
 		 !GetString( funcStartIter, compilerOutputPrefix, ".CompilerOutputPrefix", false ) ||
-		 !GetString( funcStartIter, compilerOutputExtension, ".CompilerOutputExtension", false ) )
+		 !GetString( funcStartIter, compilerOutputExtension, ".CompilerOutputExtension", false ) ||
+		 !GetString( funcStartIter, compilerObjectNameOverride, ".CompilerObjectNameOverride", false ) )
 	{
 		return false;
 	}
@@ -244,6 +246,11 @@ FunctionObjectList::FunctionObjectList()
 	{
 		o->m_ObjExtensionOverride = compilerOutputExtension->GetString();
 	}
+
+	if (compilerObjectNameOverride)
+	{
+		o->m_ObjNameOverride = compilerObjectNameOverride->GetString();
+	}
     o->m_CompilerOutputPrefix = compilerOutputPrefix;
 	o->m_ExtraPDBPath = extraPDBPath;
 	o->m_ExtraASMPath = extraASMPath;
@@ -300,8 +307,10 @@ bool FunctionObjectList::GetPrecompiledHeaderNode( const BFFIterator & iter,
 	const BFFVariable * pchInputFile = nullptr;
 	const BFFVariable * pchOutputFile = nullptr;
 	const BFFVariable * pchOptions = nullptr;
+	const BFFVariable * pchObjFileNameOverride = nullptr;
 	if ( !GetString( iter, pchInputFile, ".PCHInputFile" ) ||
 		 !GetString( iter, pchOutputFile, ".PCHOutputFile" ) ||
+		 !GetString( iter, pchObjFileNameOverride, ".PCHObjectNameOverride" ) ||
 		 !GetString( iter, pchOptions, ".PCHOptions" ) )
 	{
 		return false;
@@ -399,6 +408,11 @@ bool FunctionObjectList::GetPrecompiledHeaderNode( const BFFIterator & iter,
 												     allowDistribution,
 													 allowCaching,
                                                      nullptr, AString::GetEmpty(), 0 ); // preprocessor args not supported
+
+		if (pchObjFileNameOverride)
+		{
+			precompiledHeaderNode->SetObjNameOverride( pchObjFileNameOverride->GetString() );
+		}
 	}
 
 	return true;
