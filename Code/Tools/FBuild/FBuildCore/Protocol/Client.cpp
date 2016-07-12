@@ -80,6 +80,9 @@ Client::~Client()
 		const Job * const * end = ss->m_Jobs.End();
 		while ( it != end )
 		{
+			Job* job = *it;
+			//FLOG_BUILD("-> Problem: %s <REMOTE: %s>\n", job->GetNode()->GetName().Get(), connection->GetRemoteName());
+			FLOG_VISUALIZER("FINISH_JOB TIMEOUT %s \"%s\" \n", connection->GetRemoteName(), job->GetNode()->GetName().Get());
 			JobQueue::Get().ReturnUnfinishedDistributableJob( *it );
 			++it;
 		}
@@ -445,9 +448,8 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgRequ
 	ASSERT( toolId );
 
 	// output to signify remote start
-	AStackString<> address; // TODO:B the host name would be better
-	TCPConnectionPool::GetAddressAsString( connection->GetRemoteAddress(), address );
-	FLOG_BUILD( "-> Obj: %s <REMOTE: %s>\n", job->GetNode()->GetName().Get(), address.Get() );
+	FLOG_BUILD( "-> Obj: %s <REMOTE: %s>\n", job->GetNode()->GetName().Get(), connection->GetRemoteName());
+	FLOG_VISUALIZER("START_JOB %s \"%s\" \n", connection->GetRemoteName(), job->GetNode()->GetName().Get());
 
     {
         PROFILE_SECTION( "SendJob" )
@@ -638,6 +640,7 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgJobR
 		Node::DumpOutput( nullptr, failureOutput.Get(), failureOutput.GetLength(), nullptr );
 	}
 
+	FLOG_VISUALIZER("FINISH_JOB %s %s \"%s\" \n", result ? "SUCCESS" : "ERROR", connection->GetRemoteName(), job->GetNode()->GetName().Get());
 	JobQueue::Get().FinishedProcessingJob( job, result, true, false ); // remote job, not a race of a remote job
 }
 

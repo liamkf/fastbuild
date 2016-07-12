@@ -13,6 +13,7 @@
 #include "Core/Env/Types.h"
 #include "Core/Profile/Profile.h"
 #include "Core/Tracing/Tracing.h"
+#include "Core/FileIO/FileStream.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -36,6 +37,9 @@
 /*static*/ bool FLog::s_ShowErrors = true;
 /*static*/ bool FLog::s_ShowProgress = false;
 /*static*/ AStackString< 64 > FLog::m_ProgressText;
+/*static*/ Mutex FLog::m_VisualizerMutex;
+/*static*/ FileStream* FLog::m_VisualizerFileStream = NULL;
+/*static*/ Timer FLog::m_VisualizerTimer;
 static AStackString< 72 > g_ClearLineString( "\r                                                               \r" );
 static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 // Info
@@ -66,6 +70,29 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 	Tracing::Output( buffer.Get() );
 }
 
+// Visualizer
+//------------------------------------------------------------------------------
+/*static*/ void FLog::Visualizer(const char * formatString, ... )
+{
+	MutexHolder lock(m_VisualizerMutex);
+
+	AStackString< 8192 > buffer;
+
+	va_list args;
+	va_start(args, formatString);
+	buffer.VFormat(formatString, args);
+	va_end(args);
+
+	AString finalBuffer;
+
+	finalBuffer.Format("%lld %s", (long long)m_VisualizerTimer.GetElapsedMS(), buffer.Get());
+
+	if (m_VisualizerFileStream && m_VisualizerFileStream->IsOpen())
+	{
+		m_VisualizerFileStream->WriteBuffer(finalBuffer.Get(), finalBuffer.GetLength());
+		m_VisualizerFileStream->Flush();
+	}
+}
 // BuildDirect
 //------------------------------------------------------------------------------
 /*static*/ void FLog::BuildDirect( const char * message )
@@ -148,6 +175,34 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 //------------------------------------------------------------------------------
 /*static*/ void FLog::StartBuild()
 {
+	{
+		MutexHolder lock(m_VisualizerMutex);
+
+		AStackString<> fullPath;
+		FileIO::GetTempDir(fullPath);
+
+		fullPath += "FastBuild/FastBuildLog.log";
+
+		if (m_VisualizerFileStream)
+		{
+			if (m_VisualizerFileStream->IsOpen())
+			{
+				m_VisualizerFileStream->Close();
+			}
+			delete m_VisualizerFileStream;
+		}
+
+		m_VisualizerFileStream = new FileStream();
+
+		if (m_VisualizerFileStream->Open(fullPath.Get(), FileStream::READ_WRITE) == false)
+		{
+			delete m_VisualizerFileStream;
+			m_VisualizerFileStream = nullptr;
+		}
+
+		Visualizer("START_BUILD\n");
+	}
+
 //	if ( s_ShowProgress )
 	{
 		Tracing::SetCallbackOutput( &TracingOutputCallback );
@@ -158,6 +213,22 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 //------------------------------------------------------------------------------
 /*static*/ void FLog::StopBuild()
 {
+	{
+		MutexHolder lock(m_VisualizerMutex);
+
+		if (m_VisualizerFileStream)
+		{
+			if (m_VisualizerFileStream->IsOpen())
+			{
+				Visualizer("STOP_BUILD\n");
+
+				m_VisualizerFileStream->Close();
+			}
+			delete m_VisualizerFileStream;
+
+			m_VisualizerFileStream = NULL;
+		}
+	}
 	if ( s_ShowProgress )
 	{
 		Tracing::SetCallbackOutput( nullptr );

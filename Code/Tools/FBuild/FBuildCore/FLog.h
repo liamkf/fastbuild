@@ -7,7 +7,8 @@
 // Includes
 //------------------------------------------------------------------------------
 #include "Core/Strings/AStackString.h"
-
+#include "Core/Process/Mutex.h"
+#include "Core/Time/Timer.h"
 
 // Macros
 //------------------------------------------------------------------------------
@@ -31,6 +32,13 @@
 #define FLOG_BUILD_DIRECT( message )			    \
 	do {											\
 		FLog::BuildDirect( message );               \
+	PRAGMA_DISABLE_PUSH_MSVC(4127)					\
+	} while ( false );								\
+	PRAGMA_DISABLE_POP_MSVC
+
+#define FLOG_VISUALIZER( fmtString, ... )			\
+	do {											\
+		FLog::Visualizer( fmtString, ##__VA_ARGS__ );	\
 	PRAGMA_DISABLE_PUSH_MSVC(4127)					\
 	} while ( false );								\
 	PRAGMA_DISABLE_POP_MSVC
@@ -68,6 +76,7 @@ public:
 	static void Build( const char * formatString, ... );
 	static void Warning( const char * formatString, ... );
 	static void Error( const char * formatString, ... );
+	static void Visualizer( const char * formatString, ... );
 
 	// for large, already formatted messages
     static void BuildDirect( const char * message );
@@ -93,6 +102,10 @@ private:
 	static bool s_ShowProgress;
 
 	static AStackString< 64 > m_ProgressText;
+
+	static Mutex m_VisualizerMutex;
+	static class FileStream* m_VisualizerFileStream;
+	static Timer m_VisualizerTimer;
 };
 
 //------------------------------------------------------------------------------

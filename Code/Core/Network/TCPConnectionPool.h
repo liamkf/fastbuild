@@ -38,12 +38,14 @@ public:
 	// access to info about this connection
 	TCPConnectionPool & GetTCPConnectionPool() const { return *m_TCPConnectionPool; }
 	inline uint32_t GetRemoteAddress() const { return m_RemoteAddress; }
+	inline const char* GetRemoteName() const { return m_RemoteName; }
 
 private:
 	friend class TCPConnectionPool;
 
 	TCPSocket				m_Socket;
 	uint32_t				m_RemoteAddress;
+	char					m_RemoteName[NI_MAXHOST];
 	uint16_t				m_RemotePort;
 	volatile mutable bool	m_ThreadQuitNotification;
 	TCPConnectionPool *		m_TCPConnectionPool; // back pointer to parent pool

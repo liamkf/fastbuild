@@ -19,7 +19,8 @@ public:
 	{
 		READ_ONLY		= 0x1,
 		WRITE_ONLY		= 0x2,
-		TEMP			= 0x4,
+		READ_WRITE		= 0x4,
+		TEMP			= 0x8,
 		NO_RETRY_ON_SHARING_VIOLATION = 0x80,
 	};
 

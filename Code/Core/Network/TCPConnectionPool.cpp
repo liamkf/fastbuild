@@ -19,6 +19,7 @@
 // System
 #if defined( __WINDOWS__ )
     #include <winsock2.h>
+	#include <ws2tcpip.h>
     #include <windows.h>
 #elif defined( __APPLE__ ) || defined( __LINUX__ )
     #include <string.h>
@@ -847,6 +848,13 @@ ConnectionInfo * TCPConnectionPool::CreateConnectionThread( TCPSocket socket, ui
 	ci->m_RemoteAddress = host;
 	ci->m_RemotePort = port;
 	ci->m_ThreadQuitNotification = false;
+
+	struct sockaddr_in addrInfo;
+	addrInfo.sin_family = AF_INET;
+	addrInfo.sin_addr.s_addr = host;
+	addrInfo.sin_port = htons(port);
+
+	getnameinfo( (struct sockaddr *) &addrInfo, sizeof(struct sockaddr), ci->m_RemoteName, NI_MAXHOST, NULL, 0, NI_NUMERICSERV );
 
     #ifdef TCPCONNECTION_DEBUG
         AStackString<32> addr;
