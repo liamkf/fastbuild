@@ -12,6 +12,12 @@
 
 // Macros
 //------------------------------------------------------------------------------
+
+#if defined( __WINDOWS__ )
+#define FBUILD_VISUALIZER	
+#endif
+
+
 #define FLOG_INFO( fmtString, ... )					\
 	do {											\
 		if ( FLog::ShowInfo() )						\
@@ -36,12 +42,16 @@
 	} while ( false );								\
 	PRAGMA_DISABLE_POP_MSVC
 
+#if defined( FBUILD_VISUALIZER )
 #define FLOG_VISUALIZER( fmtString, ... )			\
 	do {											\
 		FLog::Visualizer( fmtString, ##__VA_ARGS__ );	\
 	PRAGMA_DISABLE_PUSH_MSVC(4127)					\
 	} while ( false );								\
 	PRAGMA_DISABLE_POP_MSVC
+#else
+#define FLOG_VISUALIZER( fmtString, ... )
+#endif
 
 #define FLOG_WARN( fmtString, ... )					\
 	do {											\
@@ -68,7 +78,7 @@
 //------------------------------------------------------------------------------
 class FLog
 {
-public:	
+public:
 	inline static bool ShowInfo() { return s_ShowInfo; }
 	inline static bool ShowErrors() { return s_ShowErrors; }
 
@@ -76,10 +86,11 @@ public:
 	static void Build( const char * formatString, ... );
 	static void Warning( const char * formatString, ... );
 	static void Error( const char * formatString, ... );
-	static void Visualizer( const char * formatString, ... );
-
+#if defined(FBUILD_VISUALIZER)
+	static void Visualizer(const char * formatString, ...);
+#endif
 	// for large, already formatted messages
-    static void BuildDirect( const char * message );
+	static void BuildDirect( const char * message );
 	static void ErrorDirect( const char * message );
 
 	static void StartBuild();
@@ -103,9 +114,11 @@ private:
 
 	static AStackString< 64 > m_ProgressText;
 
+#if defined(FBUILD_VISUALIZER)
 	static Mutex m_VisualizerMutex;
 	static class FileStream* m_VisualizerFileStream;
 	static Timer m_VisualizerTimer;
+#endif
 };
 
 //------------------------------------------------------------------------------

@@ -37,9 +37,11 @@
 /*static*/ bool FLog::s_ShowErrors = true;
 /*static*/ bool FLog::s_ShowProgress = false;
 /*static*/ AStackString< 64 > FLog::m_ProgressText;
+#if defined(FBUILD_VISUALIZER)
 /*static*/ Mutex FLog::m_VisualizerMutex;
 /*static*/ FileStream* FLog::m_VisualizerFileStream = NULL;
 /*static*/ Timer FLog::m_VisualizerTimer;
+#endif
 static AStackString< 72 > g_ClearLineString( "\r                                                               \r" );
 static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 // Info
@@ -70,13 +72,17 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 	Tracing::Output( buffer.Get() );
 }
 
+#if defined(FBUILD_VISUALIZER)
 // Visualizer
 //------------------------------------------------------------------------------
-/*static*/ void FLog::Visualizer(const char * formatString, ... )
+/*static*/ void FLog::Visualizer(const char * formatString, ...)
 {
 	MutexHolder lock(m_VisualizerMutex);
 
-	AStackString< 8192 > buffer;
+	FILETIME ft;
+	GetSystemTimeAsFileTime(&ft);
+
+	AString buffer;
 
 	va_list args;
 	va_start(args, formatString);
@@ -85,7 +91,9 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 
 	AString finalBuffer;
 
-	finalBuffer.Format("%lld %s", (long long)m_VisualizerTimer.GetElapsedMS(), buffer.Get());
+	int64_t compactFileTime = ((int64_t)ft.dwHighDateTime << sizeof(DWORD)*8) | (int64_t)ft.dwLowDateTime;
+
+	finalBuffer.Format("%lld %s", compactFileTime, buffer.Get());
 
 	if (m_VisualizerFileStream && m_VisualizerFileStream->IsOpen())
 	{
@@ -93,6 +101,8 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 		m_VisualizerFileStream->Flush();
 	}
 }
+#endif
+
 // BuildDirect
 //------------------------------------------------------------------------------
 /*static*/ void FLog::BuildDirect( const char * message )
@@ -175,6 +185,7 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 //------------------------------------------------------------------------------
 /*static*/ void FLog::StartBuild()
 {
+#if defined(FBUILD_VISUALIZER)
 	{
 		MutexHolder lock(m_VisualizerMutex);
 
@@ -202,6 +213,7 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 
 		Visualizer("START_BUILD\n");
 	}
+#endif
 
 //	if ( s_ShowProgress )
 	{
@@ -213,6 +225,7 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 //------------------------------------------------------------------------------
 /*static*/ void FLog::StopBuild()
 {
+#if defined(FBUILD_VISUALIZER)
 	{
 		MutexHolder lock(m_VisualizerMutex);
 
@@ -229,6 +242,7 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 			m_VisualizerFileStream = NULL;
 		}
 	}
+#endif
 	if ( s_ShowProgress )
 	{
 		Tracing::SetCallbackOutput( nullptr );
