@@ -281,6 +281,7 @@ void JobQueueRemote::FinishedProcessingJob( Job * job, bool success )
 
 	ObjectNode * node = job->GetNode()->CastTo< ObjectNode >();
 
+#if defined(FBUILD_VISUALIZER)
 	bool bStartedVSLog = false;
 
 	const AString& nodeName = node->GetType() == Node::OBJECT_NODE ? ((ObjectNode*)node)->GetSourceFile()->GetName() : job->GetNode()->GetName();
@@ -290,6 +291,7 @@ void JobQueueRemote::FinishedProcessingJob( Job * job, bool success )
 		bStartedVSLog = true;
 		FLOG_VISUALIZER("START_JOB local \"%s\" \n", nodeName.Get());
 	}
+#endif
 
 	// remote tasks must output to a tmp file
 	if ( job->IsLocal() == false )
@@ -397,12 +399,14 @@ void JobQueueRemote::FinishedProcessingJob( Job * job, bool success )
 	// log processing time
 	node->AddProcessingTime( timeTakenMS );
 	
+#if defined(FBUILD_VISUALIZER)
 	if (bStartedVSLog)
 	{
 		FLOG_VISUALIZER("FINISH_JOB %s local \"%s\" \"%s\"\n", result == Node::NODE_RESULT_FAILED ? "ERROR" : "SUCCESS",
 			nodeName.Get(),
 			job->GetNode()->GetFinalBuildOutputMessages().Get());
 	}
+#endif
 
 	return result;
 }
