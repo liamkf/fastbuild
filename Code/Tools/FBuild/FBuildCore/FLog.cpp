@@ -204,7 +204,9 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 			m_MonitorFileStream = nullptr;
 		}
 
-		Monitor("START_BUILD\n");
+		DWORD pid = GetCurrentProcessId();
+
+		Monitor("START_BUILD %d\n", pid);
 	}
 #endif
 
