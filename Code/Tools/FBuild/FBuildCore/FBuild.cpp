@@ -543,7 +543,7 @@ void FBuild::UpdateBuildStatus( const Node * node )
 {
 	PROFILE_FUNCTION
 
-	if ( FBuild::Get().GetOptions().m_ShowProgress == false ) 
+	if ( FBuild::Get().GetOptions().m_ShowProgress == false && FBuild::Get().GetOptions().m_EnableMonitor == false)
 	{
 		return;
 	}
@@ -592,7 +592,13 @@ void FBuild::UpdateBuildStatus( const Node * node )
 		JobQueue::Get().GetJobStats( numJobs, numJobsActive, numJobsDist, numJobsDistActive );
 	}
 
-	FLog::OutputProgress( timeNow, m_SmoothedProgressCurrent, numJobs, numJobsActive, numJobsDist, numJobsDistActive );
+	if (FBuild::Get().GetOptions().m_ShowProgress)
+	{
+		FLog::OutputProgress(timeNow, m_SmoothedProgressCurrent, numJobs, numJobsActive, numJobsDist, numJobsDistActive);
+	}
+
+	FLOG_MONITOR("PROGRESS_STATUS %f \n", m_SmoothedProgressCurrent);
+
 	m_LastProgressOutputTime = timeNow;
 }
 

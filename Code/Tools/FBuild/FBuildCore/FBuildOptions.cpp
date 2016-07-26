@@ -38,6 +38,9 @@ FBuildOptions::FBuildOptions()
 , m_FixupErrorPaths( false )
 , m_StopOnFirstError( true )
 , m_WorkingDirHash( 0 )
+#ifdef FBUILD_MONITOR
+, m_EnableMonitor( false )
+#endif
 {
 #ifdef DEBUG
 	//m_ShowInfo = true; // uncomment this to enable spam when debugging
