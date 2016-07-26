@@ -541,12 +541,12 @@ void JobQueue::FinishedProcessingJob( Job * job, bool success, bool wasARemoteJo
 
 	const AString& nodeName = node->GetType() == Node::OBJECT_NODE ? ((ObjectNode*)node)->GetSourceFile()->GetName() : job->GetNode()->GetName();
 
-#if defined(FBUILD_VISUALIZER)
+#if defined(FBUILD_MONITOR)
 	if (node->GetType() == Node::OBJECT_NODE || node->GetType() == Node::EXE_NODE || node->GetType() == Node::LIBRARY_NODE || node->GetType() == Node::DLL_NODE || node->GetType() == Node::CS_NODE)
 	{
 		bStartedVSLog = true;
 
-		FLOG_VISUALIZER("START_JOB local \"%s\" \n", nodeName.Get());
+		FLOG_MONITOR("START_JOB local \"%s\" \n", nodeName.Get());
 	}
 #endif
 
@@ -638,10 +638,10 @@ void JobQueue::FinishedProcessingJob( Job * job, bool success, bool wasARemoteJo
 	// log processing time
 	node->AddProcessingTime( timeTakenMS );
 
-#if defined(FBUILD_VISUALIZER)
+#if defined(FBUILD_MONITOR)
 	if (bStartedVSLog)
 	{
-		FLOG_VISUALIZER("FINISH_JOB %s local \"%s\" \"%s\"\n", result == Node::NODE_RESULT_FAILED ? "ERROR" : "SUCCESS",
+		FLOG_MONITOR("FINISH_JOB %s local \"%s\" \"%s\"\n", result == Node::NODE_RESULT_FAILED ? "ERROR" : "SUCCESS",
 			nodeName.Get(),
 			job->GetNode()->GetFinalBuildOutputMessages().Get());
 	}

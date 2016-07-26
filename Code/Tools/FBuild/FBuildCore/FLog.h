@@ -9,15 +9,10 @@
 #include "Core/Strings/AStackString.h"
 #include "Core/Process/Mutex.h"
 #include "Core/Time/Timer.h"
+#include "Core/Monitor/Monitor.h"
 
 // Macros
 //------------------------------------------------------------------------------
-
-#if defined( __WINDOWS__ )
-#define FBUILD_VISUALIZER	
-#endif
-
-
 #define FLOG_INFO( fmtString, ... )					\
 	do {											\
 		if ( FLog::ShowInfo() )						\
@@ -42,15 +37,15 @@
 	} while ( false );								\
 	PRAGMA_DISABLE_POP_MSVC
 
-#if defined( FBUILD_VISUALIZER )
-#define FLOG_VISUALIZER( fmtString, ... )			\
+#if defined( FBUILD_MONITOR )
+#define FLOG_MONITOR( fmtString, ... )			\
 	do {											\
-		FLog::Visualizer( fmtString, ##__VA_ARGS__ );	\
+		FLog::Monitor( fmtString, ##__VA_ARGS__ );	\
 	PRAGMA_DISABLE_PUSH_MSVC(4127)					\
 	} while ( false );								\
 	PRAGMA_DISABLE_POP_MSVC
 #else
-#define FLOG_VISUALIZER( fmtString, ... )
+#define FLOG_MONITOR( fmtString, ... )
 #endif
 
 #define FLOG_WARN( fmtString, ... )					\
@@ -86,8 +81,8 @@ public:
 	static void Build( const char * formatString, ... );
 	static void Warning( const char * formatString, ... );
 	static void Error( const char * formatString, ... );
-#if defined(FBUILD_VISUALIZER)
-	static void Visualizer(const char * formatString, ...);
+#if defined(FBUILD_MONITOR)
+	static void Monitor(const char * formatString, ...);
 #endif
 	// for large, already formatted messages
 	static void BuildDirect( const char * message );
@@ -114,10 +109,9 @@ private:
 
 	static AStackString< 64 > m_ProgressText;
 
-#if defined(FBUILD_VISUALIZER)
-	static Mutex m_VisualizerMutex;
-	static class FileStream* m_VisualizerFileStream;
-	static Timer m_VisualizerTimer;
+#if defined(FBUILD_MONITOR)
+	static Mutex m_MonitorMutex;
+	static class FileStream* m_MonitorFileStream;
 #endif
 };
 

@@ -83,10 +83,10 @@ Client::~Client()
 			Job* job = *it;
 			//FLOG_BUILD("-> Problem: %s <REMOTE: %s>\n", job->GetNode()->GetName().Get(), connection->GetRemoteName());
 
-#if defined(FBUILD_VISUALIZER)
+#if defined(FBUILD_MONITOR)
 			const AString& nodeName = job->GetNode()->GetType() == Node::OBJECT_NODE ? ((ObjectNode*)job->GetNode())->GetSourceFile()->GetName() : job->GetNode()->GetName();
 
-			FLOG_VISUALIZER("FINISH_JOB TIMEOUT %s \"%s\" \n", connection->GetRemoteName(), nodeName.Get());
+			FLOG_MONITOR("FINISH_JOB TIMEOUT %s \"%s\" \n", connection->GetRemoteName(), nodeName.Get());
 #endif
 			JobQueue::Get().ReturnUnfinishedDistributableJob( *it );
 			++it;
@@ -455,10 +455,10 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgRequ
 	// output to signify remote start
 	FLOG_BUILD( "-> Obj: %s <REMOTE: %s>\n", job->GetNode()->GetName().Get(), connection->GetRemoteName());
 	
-#if defined(FBUILD_VISUALIZER)
+#if defined(FBUILD_MONITOR)
 	const AString& nodeName = job->GetNode()->GetType() == Node::OBJECT_NODE ? ((ObjectNode*)job->GetNode())->GetSourceFile()->GetName() : job->GetNode()->GetName();
 
-	FLOG_VISUALIZER("START_JOB %s \"%s\" \n", connection->GetRemoteName(), nodeName.Get());
+	FLOG_MONITOR("START_JOB %s \"%s\" \n", connection->GetRemoteName(), nodeName.Get());
 #endif
 
     {
@@ -652,10 +652,10 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgJobR
 		Node::DumpOutput( nullptr, failureOutput.Get(), failureOutput.GetLength(), nullptr, job->GetNode()->GetBuildOutputMessagesStringPointer());
 	}
 
-#if defined(FBUILD_VISUALIZER)
+#if defined(FBUILD_MONITOR)
 	const AString& nodeName = job->GetNode()->GetType() == Node::OBJECT_NODE ? ((ObjectNode*)job->GetNode())->GetSourceFile()->GetName() : job->GetNode()->GetName();
 
-	FLOG_VISUALIZER("FINISH_JOB %s %s \"%s\" \"%s\"\n", result ? "SUCCESS" : "ERROR",
+	FLOG_MONITOR("FINISH_JOB %s %s \"%s\" \"%s\"\n", result ? "SUCCESS" : "ERROR",
 		connection->GetRemoteName(),
 		nodeName.Get(),
 		job->GetNode()->GetFinalBuildOutputMessages().Get());
