@@ -112,7 +112,7 @@ int Main(int argc, char * argv[])
 	bool waitMode = false;
 	bool noStopOnError = false;
 	bool displayTargetList = false;
-	bool enableMonitor = false;
+	bool enableMonitor = true;
 	int32_t numWorkers = -1;
 	WrapperMode wrapperMode( WRAPPER_MODE_NONE );
 	AStackString<> args;
