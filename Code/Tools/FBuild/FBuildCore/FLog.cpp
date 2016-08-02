@@ -210,6 +210,7 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 		Monitor("START_BUILD %d\n", pid);
 	}
 #endif
+	Tracing::AddCallbackOutput( &TracingOutputCallback );
 }
 
 // StopBuild
@@ -235,10 +236,10 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 		}
 	}
 #endif
+	Tracing::RemoveCallbackOutput( &TracingOutputCallback );
 
 	if ( s_ShowProgress )
 	{
-	Tracing::RemoveCallbackOutput( &TracingOutputCallback );
 		fputs( g_ClearLineString.Get(), stdout );
 		m_ProgressText.Clear();
 	}
