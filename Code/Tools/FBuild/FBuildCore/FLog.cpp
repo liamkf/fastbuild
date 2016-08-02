@@ -43,6 +43,7 @@
 #endif
 static AStackString< 72 > g_ClearLineString( "\r                                                               \r" );
 static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
+
 // Info
 //------------------------------------------------------------------------------
 /*static*/ void FLog::Info( const char * formatString, ... )
@@ -209,11 +210,6 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 		Monitor("START_BUILD %d\n", pid);
 	}
 #endif
-
-//	if ( s_ShowProgress )
-	{
-		Tracing::SetCallbackOutput( &TracingOutputCallback );
-	}
 }
 
 // StopBuild
@@ -242,7 +238,7 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 
 	if ( s_ShowProgress )
 	{
-		Tracing::SetCallbackOutput( nullptr );
+	Tracing::RemoveCallbackOutput( &TracingOutputCallback );
 		fputs( g_ClearLineString.Get(), stdout );
 		m_ProgressText.Clear();
 	}
