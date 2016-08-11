@@ -203,6 +203,9 @@ ObjectNode::~ObjectNode()
         useDeoptimization = false; // disable deoptimization
     }
 
+	// Graphing the current amount of distribuable jobs
+	FLOG_MONITOR("GRAPH FASTBuild \"Distribuable Jobs MemUsage\" MB %f\n", (float)JobQueue::Get().GetDistributableJobsMemUsage() / (float)MEGABYTE);
+
 	if ( usePreProcessor )
 	{
 		return DoBuildWithPreProcessor( job, useDeoptimization, useCache );
@@ -353,7 +356,7 @@ Node::BuildResult ObjectNode::DoBuildWithPreProcessor( Job * job, bool useDeopti
 	if ( GetFlag( FLAG_CAN_BE_DISTRIBUTED ) &&
          m_AllowDistribution &&
 		 FBuild::Get().GetOptions().m_AllowDistributed &&
-		 JobQueue::Get().GetDistributableJobsMemUsage() < ( 512 * MEGABYTE ) )
+		JobQueue::Get().GetDistributableJobsMemUsage() < ( 512 * MEGABYTE ) )
 	{
 		// compress job data
 		Compressor c;
@@ -410,7 +413,7 @@ Node::BuildResult ObjectNode::DoBuildWithPreProcessor2( Job * job, bool useDeopt
 			// we are not going to write it to the cache, then we should
 			// use the PCH as it will be much faster
 			if ( GetFlag( FLAG_USING_PCH ) &&
-				 ( FBuild::Get().GetOptions().m_UseCacheWrite == false ) )
+				( FBuild::Get().GetOptions().m_UseCacheWrite == false ) )
 			{
 				usePreProcessedOutput = false;
 			}

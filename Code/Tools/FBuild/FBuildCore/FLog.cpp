@@ -79,7 +79,7 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 	MutexHolder lock(m_MonitorMutex);
 
 	FILETIME ft;
-	GetSystemTimeAsFileTime(&ft);
+	GetSystemTimePreciseAsFileTime(&ft);
 
 	AString buffer;
 
