@@ -403,7 +403,7 @@ void JobQueue::ReturnUnfinishedDistributableJob( Job * job, bool systemError )
 
 // FinalizeCompletedJobs (Main Thread)
 //------------------------------------------------------------------------------
-void JobQueue::FinalizeCompletedJobs()
+void JobQueue::FinalizeCompletedJobs( NodeGraph & nodeGraph )
 {
     PROFILE_FUNCTION
 
@@ -421,7 +421,7 @@ void JobQueue::FinalizeCompletedJobs()
 	{
 		Job * job = ( *i );
 		Node * n = job->GetNode();
-		if ( n->Finalize() )
+		if ( n->Finalize( nodeGraph ) )
 		{
 			n->SetState( Node::UP_TO_DATE );
 		}
@@ -641,7 +641,25 @@ void JobQueue::FinishedProcessingJob( Job * job, bool success, bool wasARemoteJo
 #if defined(FBUILD_MONITOR)
 	if (bStartedVSLog)
 	{
-		FLOG_MONITOR("FINISH_JOB %s local \"%s\" \"%s\"\n", result == Node::NODE_RESULT_FAILED ? "ERROR" : "SUCCESS",
+		const char* resultString = NULL;
+
+		switch (result)
+		{
+		case Node::NODE_RESULT_OK:
+			resultString = "SUCCESS_COMPLETE";
+			break;
+		case Node::NODE_RESULT_NEED_SECOND_BUILD_PASS:
+			resultString = "SUCCESS_PREPROCESSED";
+			break;
+		case Node::NODE_RESULT_OK_CACHE:
+			resultString = "SUCCESS_CACHED";
+			break;
+		case Node::NODE_RESULT_FAILED:
+			resultString = "FAILED";
+			break;
+		}
+
+		FLOG_MONITOR("FINISH_JOB %s local \"%s\" \"%s\"\n", resultString,
 			nodeName.Get(),
 			job->GetNode()->GetFinalBuildOutputMessages().Get());
 	}
