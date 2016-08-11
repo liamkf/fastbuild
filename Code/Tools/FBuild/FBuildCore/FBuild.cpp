@@ -649,20 +649,4 @@ void FBuild::DisplayTargetList() const
 	}
 }
 
-// DisplayTargetList
-//------------------------------------------------------------------------------
-void FBuild::DisplayTargetList() const
-{
-	OUTPUT( "FBuild: List of available targets\n" );
-	const size_t totalNodes = m_DependencyGraph->GetNodeCount();
-	for ( size_t i = 0; i < totalNodes; ++i )
-	{
-		Node * node = m_DependencyGraph->GetNodeByIndex( i );
-		if ( node && node->GetType() == Node::ALIAS_NODE )
-		{
-			OUTPUT( "\t%s\n", node->GetName().Get() );
-		}
-	}
-}
-
 //------------------------------------------------------------------------------
