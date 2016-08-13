@@ -36,7 +36,7 @@ public:
 	bool m_WrapperChild;
 	bool m_FixupErrorPaths;
 	bool m_StopOnFirstError;
-#ifdef FBUILD_MONITOR
+#if defined( FBUILD_MONITOR )
 	bool m_EnableMonitor;
 #endif
 	uint32_t m_NumWorkerThreads;
