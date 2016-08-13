@@ -549,9 +549,14 @@ void FBuild::UpdateBuildStatus( const Node * node )
 {
 	PROFILE_FUNCTION
 
-	if ( FBuild::Get().GetOptions().m_ShowProgress == false && FBuild::Get().GetOptions().m_EnableMonitor == false)
+	if ( FBuild::Get().GetOptions().m_ShowProgress == false )
 	{
-		return;
+#if defined( FBUILD_MONITOR )
+		if (FBuild::Get().GetOptions().m_EnableMonitor == false)
+#endif
+		{
+			return;
+		}
 	}
 
 	const float OUTPUT_FREQUENCY( 1.0f );

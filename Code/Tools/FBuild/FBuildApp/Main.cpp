@@ -111,7 +111,9 @@ int Main(int argc, char * argv[])
 	bool waitMode = false;
 	bool noStopOnError = false;
 	bool displayTargetList = false;
+#if defined( FBUILD_MONITOR )
 	bool enableMonitor = true;
+#endif
 	int32_t numWorkers = -1;
 	WrapperMode wrapperMode( WRAPPER_MODE_NONE );
 	AStackString<> args;
@@ -425,7 +427,7 @@ int Main(int argc, char * argv[])
 	options.m_GenerateReport = report;
 	options.m_WrapperChild = ( wrapperMode == WRAPPER_MODE_FINAL_PROCESS );
 	options.m_FixupErrorPaths = fixupErrorPaths;
-#ifdef FBUILD_MONITOR
+#if defined( FBUILD_MONITOR )
 	options.m_EnableMonitor = enableMonitor;
 #endif
 	if ( ( targets.GetSize() > 1 ) || ( noStopOnError ) )

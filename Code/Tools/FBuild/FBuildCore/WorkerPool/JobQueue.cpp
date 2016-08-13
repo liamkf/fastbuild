@@ -537,11 +537,12 @@ void JobQueue::FinishedProcessingJob( Job * job, bool success, bool wasARemoteJo
 
 	Node * node = job->GetNode();
 
+
+#if defined(FBUILD_MONITOR)
 	bool bStartedVSLog = false;
 
 	const AString& nodeName = node->GetType() == Node::OBJECT_NODE ? ((ObjectNode*)node)->GetSourceFile()->GetName() : job->GetNode()->GetName();
 
-#if defined(FBUILD_MONITOR)
 	if (node->GetType() == Node::OBJECT_NODE || node->GetType() == Node::EXE_NODE || node->GetType() == Node::LIBRARY_NODE || node->GetType() == Node::DLL_NODE || node->GetType() == Node::CS_NODE)
 	{
 		bStartedVSLog = true;

@@ -207,7 +207,7 @@ static AStackString< 64 > g_OutputString( "\r99.9 % [....................] " );
 
 		DWORD pid = GetCurrentProcessId();
 
-		Monitor("START_BUILD %d\n", pid);
+		Monitor("START_BUILD %d %d\n", FBUILD_MONITOR_VERSION, pid);
 	}
 #endif
 	Tracing::AddCallbackOutput( &TracingOutputCallback );

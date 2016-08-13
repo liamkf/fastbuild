@@ -38,7 +38,7 @@ FBuildOptions::FBuildOptions()
 , m_FixupErrorPaths( false )
 , m_StopOnFirstError( true )
 , m_WorkingDirHash( 0 )
-#ifdef FBUILD_MONITOR
+#if defined( FBUILD_MONITOR )
 , m_EnableMonitor( false )
 #endif
 {

@@ -80,10 +80,9 @@ Client::~Client()
 		const Job * const * end = ss->m_Jobs.End();
 		while ( it != end )
 		{
-			Job* job = *it;
-			//FLOG_BUILD("-> Problem: %s <REMOTE: %s>\n", job->GetNode()->GetName().Get(), connection->GetRemoteName());
-
 #if defined(FBUILD_MONITOR)
+			Job* job = *it;
+
 			const AString& nodeName = job->GetNode()->GetType() == Node::OBJECT_NODE ? ((ObjectNode*)job->GetNode())->GetSourceFile()->GetName() : job->GetNode()->GetName();
 
 			FLOG_MONITOR("FINISH_JOB TIMEOUT %s \"%s\" \n", connection->GetRemoteName(), nodeName.Get());
