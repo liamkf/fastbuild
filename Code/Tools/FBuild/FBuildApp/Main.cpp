@@ -161,9 +161,7 @@ int Main(int argc, char * argv[])
 				i++; // skip extra arg we've consumed
 
 				// add to args we might pass to subprocess
-				args += '"';
 				args += configFile;
-				args += '"';
 				args += ' ';
 				continue;
 			}
