@@ -1,8 +1,6 @@
 // MemPoolBlock - Block-based memory allocator
 //------------------------------------------------------------------------------
 #pragma once
-#ifndef CORE_MEM_MEMPOOLBLOCK_H
-#define CORE_MEM_MEMPOOLBLOCK_H
 
 // Array
 //------------------------------------------------------------------------------
@@ -13,36 +11,40 @@
 class MemPoolBlock
 {
 public:
-	MemPoolBlock( size_t blockSize, size_t blockAlignment );
-	~MemPoolBlock();
+    MemPoolBlock( size_t blockSize, size_t blockAlignment );
+    virtual ~MemPoolBlock();
 
-	void *	Alloc( size_t size );
-	void	Free( void * ptr );
+    void *  Alloc( size_t size );
+    void    Free( void * ptr );
 
-private:
-	void AllocPage();
+    enum { MEMPOOLBLOCK_PAGE_SIZE = 64 * 1024 };
 
-	struct FreeBlock
-	{
-		FreeBlock * m_Next;
-	};
+protected:
+    bool    AllocPage();
 
-	// in-place linked list of free blocks
-	FreeBlock * m_FreeBlockChain;
+    virtual void * AllocateMemoryForPage();
 
-	// total number of active allocations
-	#ifdef DEBUG
-		uint32_t m_NumAllocations;
-	#endif
+    struct FreeBlock
+    {
+        FreeBlock * m_Next;
+    };
 
-	// internal control params
-	size_t		m_BlockSize;
-	size_t		m_BlockAlignment;
+    // in-place linked list of free blocks
+    FreeBlock * m_FreeBlockChain            = nullptr;
 
-	// allocated pages
-	enum { PAGE_SIZE = 64 * 1024 };
-	Array< void * > m_Pages;
+    // debug active allocations
+    #if defined( DEBUG )
+        uint32_t m_NumActiveAllocations     = 0;
+        uint32_t m_NumLifetimeAllocations   = 0;
+        uint32_t m_PeakActiveAllocations    = 0;
+    #endif
+
+    // internal control params
+    uint32_t    m_BlockSize                 = 0;
+    uint32_t    m_BlockAlignment            = 0;
+
+    // allocated pages
+    Array< void * > m_Pages;
 };
 
 //------------------------------------------------------------------------------
-#endif // CORE_MEM_MEMPOOLBLOCK_H
