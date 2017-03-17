@@ -5,8 +5,6 @@
 // Includes
 //------------------------------------------------------------------------------
 #include "Core/Strings/AStackString.h"
-#include "Core/Process/Mutex.h"
-#include "Core/Time/Timer.h"
 
 // Macros
 //------------------------------------------------------------------------------

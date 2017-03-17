@@ -139,10 +139,6 @@ bool FileStream::Open( const char * fileName, uint32_t fileMode )
     {
         modeStr += "wb";
     }
-	else if ((fileMode & READ_WRITE) != 0)
-	{
-		modeStr += "wb+";
-	}
     else
     {
         ASSERT( false ); // must specify an access mode
