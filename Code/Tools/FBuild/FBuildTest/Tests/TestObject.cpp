@@ -13,9 +13,7 @@
 
 // Core
 #include "Core/FileIO/FileStream.h"
-#if defined( __OSX__ )
-    #include "Core/Process/Thread.h"
-#endif
+#include "Core/Process/Thread.h"
 #include "Core/Strings/AStackString.h"
 
 // TestObject
@@ -27,6 +25,7 @@ private:
 
     // Tests
     void MSVCArgHelpers() const;
+    void Preprocessor() const;
     void TestStaleDynamicDeps() const;
 };
 
@@ -34,6 +33,7 @@ private:
 //------------------------------------------------------------------------------
 REGISTER_TESTS_BEGIN( TestObject )
     REGISTER_TEST( MSVCArgHelpers )             // Test functions that check for MSVC args
+    REGISTER_TEST( Preprocessor )
     REGISTER_TEST( TestStaleDynamicDeps )       // Test dynamic deps are cleared when necessary
 REGISTER_TESTS_END
 
@@ -64,6 +64,55 @@ void TestObject::MSVCArgHelpers() const
         AStackString<> token( "-Ipath/path" );
         TEST_ASSERT( ObjectNode::IsStartOfCompilerArg_MSVC( token, "I" ) )
     }
+}
+
+
+// Preprocessor
+//------------------------------------------------------------------------------
+void TestObject::Preprocessor() const
+{
+    const char * configFile = "Data/TestObject/CustomPreprocessor/custompreprocessor.bff";
+    const char * database = "../../../../tmp/Test/Object/CustomPreprocessor/fbuild.fdb";
+
+    // Build
+    {
+        // Init
+        FBuildOptions options;
+        options.m_ConfigFile = configFile;
+        options.m_ShowSummary = true; // required to generate stats for node count checks
+        options.m_ForceCleanBuild = true;
+        FBuild fBuild( options );
+        TEST_ASSERT( fBuild.Initialize( database ) );
+
+        // Compile
+        TEST_ASSERT( fBuild.Build( AStackString<>( "CustomPreprocessor" ) ) );
+        fBuild.SaveDependencyGraph( database );
+
+        // Check stats
+        //               Seen,  Built,  Type
+        CheckStatsNode ( 1,     1,      Node::COMPILER_NODE );
+        CheckStatsNode ( 1,     1,      Node::OBJECT_NODE ); // 1x cpp
+    }
+
+    // No Rebuild
+    {
+        // Init
+        FBuildOptions options;
+        options.m_ConfigFile = configFile;
+        options.m_ShowSummary = true; // required to generate stats for node count checks
+        FBuild fBuild( options );
+        TEST_ASSERT( fBuild.Initialize( database ) );
+
+        // Compile
+        TEST_ASSERT( fBuild.Build( AStackString<>( "CustomPreprocessor" ) ) );
+
+        // Check stats
+        //               Seen,  Built,  Type
+        CheckStatsNode ( 1,     0,      Node::COMPILER_NODE );
+        CheckStatsNode ( 1,     0,      Node::OBJECT_NODE ); // 1x cpp
+    }
+
+
 }
 
 // TestStaleDynamicDeps
@@ -135,10 +184,11 @@ void TestObject::TestStaleDynamicDeps() const
     // Delete one of the generated headers
     EnsureFileDoesNotExist( fileB );
 
-    // Work around poor time resolution of file system on OSX by waiting at least 1 second
     // TODO:C Changes to the way dependencies are managed might make this unnecessary
     #if defined( __OSX__ )
-        Thread::Sleep(1001);
+        Thread::Sleep( 1000 ); // Work around low time resolution of HFS+
+    #elif defined( __LINUX__ )
+        Thread::Sleep( 1000 ); // Work around low time resolution of ext2/ext3/reiserfs and time caching used by used by others
     #endif
 
     // Build Again

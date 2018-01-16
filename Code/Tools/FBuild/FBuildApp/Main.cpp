@@ -4,13 +4,9 @@
 // Includes
 //------------------------------------------------------------------------------
 #include "Tools/FBuild/FBuildCore/FBuild.h"
-#include "Tools/FBuild/FBuildCore/FBuildVersion.h"
 #include "Tools/FBuild/FBuildCore/FLog.h"
-#include "Tools/FBuild/FBuildCore/Graph/NodeGraph.h"
-#include "Tools/FBuild/FBuildCore/Graph/Node.h"
+#include "Tools/FBuild/FBuildCore/Helpers/CtrlCHandler.h"
 
-#include "Core/Containers/Array.h"
-#include "Core/Env/Env.h"
 #include "Core/Process/Process.h"
 #include "Core/Process/SharedMemory.h"
 #include "Core/Process/SystemMutex.h"
@@ -35,33 +31,18 @@ enum ReturnCodes
     FBUILD_BAD_ARGS                         = -3,
     FBUILD_ALREADY_RUNNING                  = -4,
     FBUILD_FAILED_TO_SPAWN_WRAPPER          = -5,
-    FBUILD_FAILED_TO_SPAWN_WRAPPER_FINAL    = -6
+    FBUILD_FAILED_TO_SPAWN_WRAPPER_FINAL    = -6,
+    FBUILD_WRAPPER_CRASHED                  = -7,
 };
 
 // Headers
 //------------------------------------------------------------------------------
-void DisplayHelp();
-void DisplayVersion();
-#if defined( __WINDOWS__ )
-    BOOL CtrlHandler( DWORD fdwCtrlType ); // Handle Ctrl+C etc
-#else
-    // TODO:MAC Implement CtrlHandler
-    // TODO:LINUX Implement CtrlHandler
-#endif
 int WrapperMainProcess( const AString & args, const FBuildOptions & options, SystemMutex & finalProcess );
-int WrapperIntermediateProcess( const AString & args, const FBuildOptions & options );
+int WrapperIntermediateProcess( const FBuildOptions & options );
 int Main(int argc, char * argv[]);
 
 // Misc
 //------------------------------------------------------------------------------
-enum WrapperMode
-{
-    WRAPPER_MODE_NONE,
-    WRAPPER_MODE_MAIN_PROCESS,
-    WRAPPER_MODE_INTERMEDIATE_PROCESS,
-    WRAPPER_MODE_FINAL_PROCESS
-};
-
 // data passed between processes in "wrapper" mode
 struct SharedData
 {
@@ -91,242 +72,24 @@ int Main(int argc, char * argv[])
 
     Timer t;
 
-    #if defined( __WINDOWS__ )
-        VERIFY( SetConsoleCtrlHandler( (PHANDLER_ROUTINE)CtrlHandler, TRUE ) ); // Register
-    #endif
+    // Register Ctrl-C Handler
+    CtrlCHandler ctrlCHandler;
 
     // handle cmd line args
-    Array< AString > targets( 8, true );
-    bool cleanBuild = false;
-    bool verbose = false;
-    bool progressBar = true;
-    bool useCacheRead = false;
-    bool useCacheWrite = false;
-    bool allowDistributed = false;
-    bool showCommands = false;
-    bool showSummary = false;
-    bool report = false;
-    bool fixupErrorPaths = false;
-    bool waitMode = false;
-    bool noStopOnError = false;
-    bool displayTargetList = false;
-    bool enableMonitor = false;
-    int32_t numWorkers = -1;
-    WrapperMode wrapperMode( WRAPPER_MODE_NONE );
-    AStackString<> args;
-    const char * configFile = nullptr;
-    for ( int32_t i=1; i<argc; ++i ) // start from 1 to skip exe name
-    {
-        AStackString<> thisArg( argv[ i ] );
-        args += thisArg;
-        args += ' ';
-
-        // options start with a '-'
-        if ( thisArg.BeginsWith( '-' ) )
-        {
-            if ( thisArg == "-cache" )
-            {
-                useCacheRead = true;
-                useCacheWrite = true;
-                continue;
-            }
-            else if ( thisArg == "-cacheread" )
-            {
-                useCacheRead = true;
-                continue;
-            }
-            else if ( thisArg == "-cachewrite" )
-            {
-                useCacheWrite = true;
-                continue;
-            }
-            else if ( thisArg == "-clean" )
-            {
-                cleanBuild = true;
-                continue;
-            }
-            else if ( thisArg == "-config" )
-            {
-                int pathIndex = ( i + 1 );
-                if ( pathIndex >= argc )
-                {
-                    OUTPUT( "FBuild: Error: Missing <path> for '-config' argument\n" );
-                    OUTPUT( "Try \"FBuild.exe -help\"\n" );
-                    return FBUILD_BAD_ARGS;
-                }
-                configFile = argv[ pathIndex ];
-                i++; // skip extra arg we've consumed
-
-                // add to args we might pass to subprocess
-                args += '"';
-                args += configFile;
-                args += '"';
-                args += ' ';
-                continue;
-            }
-            #ifdef DEBUG
-                else if ( thisArg == "-debug" )
-                {
-                    ASSERT( false && "Break due to '-debug' argument - attach debugger!" );
-                    continue;
-                }
-            #endif
-            else if ( thisArg == "-dist" )
-            {
-                allowDistributed = true;
-                continue;
-            }
-            else if ( thisArg == "-fixuperrorpaths" )
-            {
-                fixupErrorPaths = true;
-                continue;
-            }
-            else if ( thisArg == "-help" )
-            {
-                DisplayHelp();
-                return FBUILD_OK; // exit app
-            }
-            else if ( thisArg.BeginsWith( "-j" ) &&
-                      sscanf( thisArg.Get(), "-j%i", &numWorkers ) == 1 )
-            {
-                // only accept within sensible range
-                if ( ( numWorkers >= 0 ) && ( numWorkers <= 64 ) )
-                {
-                    continue; // 'numWorkers' will contain value now
-                }
-            }
-            else if ( thisArg == "-nooutputbuffering" )
-            {
-                // this doesn't do anything any more
-                OUTPUT( "FBuild: Warning: -nooutputbuffering is deprecated.\n" );
-                continue;
-            }
-            else if ( thisArg == "-noprogress" )
-            {
-                progressBar = false;
-                continue;
-            }
-            else if ( thisArg == "-nostoponerror")
-            {
-                noStopOnError = true;
-                continue;
-            }
-            else if ( thisArg == "-report" )
-            {
-                report = true;
-                continue;
-            }
-            else if ( thisArg == "-showcmds" )
-            {
-                showCommands = true;
-                continue;
-            }
-            else if ( thisArg == "-showtargets" )
-            {
-                displayTargetList = true;
-                continue;
-            }
-            else if ( thisArg == "-summary" )
-            {
-                showSummary = true;
-                continue;
-            }
-            else if ( thisArg == "-verbose" )
-            {
-                verbose = true;
-                continue;
-            }
-            else if ( thisArg == "-version" )
-            {
-                DisplayVersion();
-                return FBUILD_OK; // exit app
-            }
-            else if ( ( thisArg == "-ide" ) || ( thisArg == "-vs" ) )
-            {
-                progressBar = false;
-                #if defined( __WINDOWS__ )
-                    fixupErrorPaths = true;
-                    wrapperMode = WRAPPER_MODE_MAIN_PROCESS;
-                #endif
-                continue;
-            }
-            else if ( thisArg == "-wait" )
-            {
-                waitMode = true;
-                continue;
-            }
-            else if ( thisArg == "-monitor" )
-            {
-                enableMonitor = true;
-                continue;
-            }
-            else if ( thisArg == "-wrapper")
-            {
-                #if defined( __WINDOWS__ )
-                    wrapperMode = WRAPPER_MODE_MAIN_PROCESS;
-                #endif
-                continue;
-            }
-            else if ( thisArg == "-wrapperintermediate")
-            {
-                #if defined( __WINDOWS__ )
-                    wrapperMode = WRAPPER_MODE_INTERMEDIATE_PROCESS;
-                #endif
-                continue;
-            }
-            else if ( thisArg == "-wrapperfinal")
-            {
-                #if defined( __WINDOWS__ )
-                    wrapperMode = WRAPPER_MODE_FINAL_PROCESS;
-                #endif
-                continue;
-            }
-
-            // can't use FLOG_ERROR as FLog is not initialized
-            OUTPUT( "FBuild: Error: Unknown argument '%s'\n", thisArg.Get() );
-            OUTPUT( "Try \"FBuild.exe -help\"\n" );
-            return FBUILD_BAD_ARGS;
-        }
-        else
-        {
-            // assume target
-            targets.Append( AStackString<>( thisArg ) );
-        }
-    }
-
-    // cache mode environment variable (if not supplied on cmd line)
-    if ( ( useCacheRead == false ) && ( useCacheWrite == false ) )
-    {
-        AStackString<> cacheMode;
-        if ( Env::GetEnvVariable( "FASTBUILD_CACHE_MODE", cacheMode ) )
-        {
-            if ( cacheMode == "r" )
-            {
-                useCacheRead = true;
-            }
-            else if ( cacheMode == "w" )
-            {
-                useCacheWrite = true;
-            }
-            else if ( cacheMode == "rw" )
-            {
-                useCacheRead = true;
-                useCacheWrite = true;
-            }
-            else
-            {
-                OUTPUT( "FASTBUILD_CACHE_MODE is invalid (%s)\n", cacheMode.Get() );
-                return FBUILD_BAD_ARGS;
-            }
-        }
-    }
-
-    // Global mutex names depend on workingDir which is managed by FBuildOptions
     FBuildOptions options;
-
-    if ( wrapperMode == WRAPPER_MODE_INTERMEDIATE_PROCESS )
+    options.m_SaveDBOnCompletion = true; // Override default
+    options.m_ShowProgress = true; // Override default
+    switch ( options.ProcessCommandLine( argc, argv ) )
     {
-        return WrapperIntermediateProcess( args, options );
+        case FBuildOptions::OPTIONS_OK:             break;
+        case FBuildOptions::OPTIONS_OK_AND_QUIT:    return FBUILD_OK;
+        case FBuildOptions::OPTIONS_ERROR:          return FBUILD_BAD_ARGS;
+    }
+
+    const FBuildOptions::WrapperMode wrapperMode = options.m_WrapperMode;
+    if ( wrapperMode == FBuildOptions::WRAPPER_MODE_INTERMEDIATE_PROCESS )
+    {
+        return WrapperIntermediateProcess( options );
     }
 
     #if defined( __WINDOWS__ )
@@ -347,12 +110,12 @@ int Main(int argc, char * argv[])
     SystemMutex finalProcess( options.GetFinalProcessMutexName().Get() );
 
     // only 1 instance running at a time
-    if ( ( wrapperMode == WRAPPER_MODE_MAIN_PROCESS ) ||
-         ( wrapperMode == WRAPPER_MODE_NONE ) )
+    if ( ( wrapperMode == FBuildOptions::WRAPPER_MODE_MAIN_PROCESS ) ||
+         ( wrapperMode == FBuildOptions::WRAPPER_MODE_NONE ) )
     {
         if ( mainProcess.TryLock() == false )
         {
-            if ( waitMode == false )
+            if ( options.m_WaitMode == false )
             {
                 OUTPUT( "FBuild: Error: Another instance of FASTBuild is already running in '%s'.", options.GetWorkingDir().Get() );
                 return FBUILD_ALREADY_RUNNING;
@@ -370,16 +133,16 @@ int Main(int argc, char * argv[])
         }
     }
 
-    if ( wrapperMode == WRAPPER_MODE_MAIN_PROCESS )
+    if ( wrapperMode == FBuildOptions::WRAPPER_MODE_MAIN_PROCESS )
     {
-        return WrapperMainProcess( args, options, finalProcess );
+        return WrapperMainProcess( options.m_Args, options, finalProcess );
     }
 
-    ASSERT( ( wrapperMode == WRAPPER_MODE_NONE ) ||
-            ( wrapperMode == WRAPPER_MODE_FINAL_PROCESS ) );
+    ASSERT( ( wrapperMode == FBuildOptions::WRAPPER_MODE_NONE ) ||
+            ( wrapperMode == FBuildOptions::WRAPPER_MODE_FINAL_PROCESS ) );
 
     SharedData * sharedData = nullptr;
-    if ( wrapperMode == WRAPPER_MODE_FINAL_PROCESS )
+    if ( wrapperMode == FBuildOptions::WRAPPER_MODE_FINAL_PROCESS )
     {
         while ( !finalProcess.TryLock() )
         {
@@ -404,38 +167,7 @@ int Main(int argc, char * argv[])
         sharedData->Started = true;
     }
 
-    options.m_ShowProgress = progressBar;
-    options.m_ShowInfo = verbose;
-    options.m_ShowCommandLines = showCommands;
-    options.m_UseCacheRead = useCacheRead;
-    options.m_UseCacheWrite = useCacheWrite;
-    if ( numWorkers >= 0 )
-    {
-        options.m_NumWorkerThreads = numWorkers;
-    }
-    options.m_ForceCleanBuild = cleanBuild;
-    options.m_AllowDistributed = allowDistributed;
-    options.m_ShowSummary = showSummary;
-    if ( configFile )
-    {
-        options.m_ConfigFile = configFile;
-    }
-    options.m_SaveDBOnCompletion = true;
-    options.m_GenerateReport = report;
-    options.m_WrapperChild = ( wrapperMode == WRAPPER_MODE_FINAL_PROCESS );
-    options.m_FixupErrorPaths = fixupErrorPaths;
-    options.m_EnableMonitor = enableMonitor;
-    if ( ( targets.GetSize() > 1 ) || ( noStopOnError ) )
-    {
-        options.m_StopOnFirstError = false; // when building multiple targets, try to build as much as possible
-    }
     FBuild fBuild( options );
-
-    if ( targets.IsEmpty() )
-    {
-        FLOG_INFO( "No target specified, defaulting to target 'all'" );
-        targets.Append( AString( "all" ) );
-    }
 
     // load the dependency graph if available
     if ( !fBuild.Initialize() )
@@ -444,16 +176,34 @@ int Main(int argc, char * argv[])
         {
             sharedData->ReturnCode = FBUILD_ERROR_LOADING_BFF;
         }
+        ctrlCHandler.DeregisterHandler(); // Ensure this happens before FBuild is destroyed
         return FBUILD_ERROR_LOADING_BFF;
     }
 
-    if ( displayTargetList )
+    if ( options.m_DisplayTargetList )
     {
         fBuild.DisplayTargetList();
+        ctrlCHandler.DeregisterHandler(); // Ensure this happens before FBuild is destroyed
         return FBUILD_OK;
     }
 
-    bool result = fBuild.Build( targets );
+    bool result = false;
+    if ( options.m_DisplayDependencyDB )
+    {
+        result = fBuild.DisplayDependencyDB( options.m_Targets );
+    }
+    else if ( options.m_CacheInfo )
+    {
+        result = fBuild.CacheOutputInfo();
+    }
+    else if ( options.m_CacheTrim )
+    {
+        result = fBuild.CacheTrim();
+    }
+    else
+    {
+        result = fBuild.Build( options.m_Targets );
+    }
 
     if ( sharedData )
     {
@@ -474,96 +224,9 @@ int Main(int argc, char * argv[])
         FLOG_BUILD( "Time: %05.3fs\n", seconds );
     }
 
+    ctrlCHandler.DeregisterHandler(); // Ensure this happens before FBuild is destroyed
     return ( result == true ) ? FBUILD_OK : FBUILD_BUILD_FAILED;
 }
-
-// DisplayHelp
-//------------------------------------------------------------------------------
-void DisplayHelp()
-{
-    DisplayVersion();
-    OUTPUT( "----------------------------------------------------------------------\n"
-            "Usage: fbuild.exe [options] [target1]..[targetn]\n"
-            "----------------------------------------------------------------------\n"
-            "Options:\n"
-            " -cache[read|write] Control use of the build cache.\n"
-            " -clean         Force a clean build.\n"
-            " -config [path] Explicitly specify the config file to use\n" );
-#ifdef DEBUG
-    OUTPUT( " -debug         Break at startup, to attach debugger.\n" );
-#endif
-    OUTPUT( " -dist          Allow distributed compilation.\n"
-            " -fixuperrorpaths Reformat error paths to be VisualStudio friendly.\n"
-            " -help          Show this help.\n"
-            " -ide           Enable multiple options when building from an IDE.\n"
-            "                Enables: -noprogress, -fixuperrorpaths &\n"
-            "                -wrapper (Windows)\n"
-            " -j[x]          Explicitly set LOCAL worker thread count X, instead of\n"
-            "                default of hardware thread count.\n"
-            " -noprogress    Don't show the progress bar while building.\n"
-            " -nostoponerror Don't stop building on first error. Try to build as much"
-            "                as possible.\n"
-            " -report        Ouput a detailed report at the end of the build,\n"
-            "                to report.html.  This will lengthen the total build\n"
-            "                time.\n"
-            " -showcmds      Show command lines used to launch external processes.\n"
-            " -showtargets   Display list of primary build targets.\n"
-            " -summary       Show a summary at the end of the build.\n"
-            " -verbose       Show detailed diagnostic information. This will slow\n"
-            "                down building.\n"
-            " -version       Print version and exit. No other work will be\n"
-            "                performed.\n"
-            " -vs            VisualStudio mode. Same as -ide.\n"
-            " -wait          Wait for a previous build to complete before starting.\n"
-            "                (Slower than building both targets in one invocation).\n"
-            " -wrapper       (Windows only) Spawn a sub-process to gracefully handle\n"
-            "                termination from Visual Studio.\n"
-            "----------------------------------------------------------------------\n" );
-}
-
-// DisplayVersion
-//------------------------------------------------------------------------------
-void DisplayVersion()
-{
-    #ifdef DEBUG
-        #define VERSION_CONFIG " (DEBUG) "
-    #else
-        #define VERSION_CONFIG " "
-    #endif
-    OUTPUT( "FASTBuild - " FBUILD_VERSION_STRING " " FBUILD_VERSION_PLATFORM VERSION_CONFIG " - "
-            "Copyright 2012-2016 Franta Fulin - http://www.fastbuild.org\n" );
-    #undef VERSION_CONFIG
-}
-
-// CtrlHandler
-//------------------------------------------------------------------------------
-#if defined( __WINDOWS__ )
-    BOOL CtrlHandler( DWORD UNUSED( fdwCtrlType ) )
-    {
-        // tell FBuild we want to stop the build cleanly
-        FBuild::AbortBuild();
-
-        // only printf output for the first break received
-        static bool received = false;
-        if ( received == false )
-        {
-            received = true;
-
-            // get the console colours
-            CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
-            VERIFY( GetConsoleScreenBufferInfo( GetStdHandle( STD_OUTPUT_HANDLE ), &consoleInfo ) );
-
-            // print a big red msg
-            VERIFY( SetConsoleTextAttribute( GetStdHandle( STD_OUTPUT_HANDLE ), FOREGROUND_RED ) );
-            OUTPUT( "<<<< ABORT SIGNAL RECEIVED >>>>\n" );
-
-            // put the console back to normal
-            VERIFY( SetConsoleTextAttribute( GetStdHandle( STD_OUTPUT_HANDLE ), consoleInfo.wAttributes ) );
-        }
-
-        return TRUE; // tell Windows we've "handled" it
-    }
-#endif
 
 // WrapperMainProcess
 //------------------------------------------------------------------------------
@@ -574,13 +237,14 @@ int WrapperMainProcess( const AString & args, const FBuildOptions & options, Sys
     g_SharedMemory.Create( options.GetSharedMemoryName().Get(), sizeof( SharedData ) );
     SharedData * sd = (SharedData *)g_SharedMemory.GetPtr();
     memset( sd, 0, sizeof( SharedData ) );
+    sd->ReturnCode = FBUILD_WRAPPER_CRASHED;
 
     // launch intermediate process
     AStackString<> argsCopy( args );
     argsCopy += " -wrapperintermediate";
 
     Process p;
-    if ( !p.Spawn( "fbuild.exe", argsCopy.Get(), options.GetWorkingDir().Get(), nullptr, true ) ) // true = forward output to our tty
+    if ( !p.Spawn( options.m_ProgramName.Get(), argsCopy.Get(), options.GetWorkingDir().Get(), nullptr, true ) ) // true = forward output to our tty
     {
         return FBUILD_FAILED_TO_SPAWN_WRAPPER;
     }
@@ -610,14 +274,14 @@ int WrapperMainProcess( const AString & args, const FBuildOptions & options, Sys
 
 // WrapperIntermediateProcess
 //------------------------------------------------------------------------------
-int WrapperIntermediateProcess( const AString & args, const FBuildOptions & options  )
+int WrapperIntermediateProcess( const FBuildOptions & options )
 {
     // launch final process
-    AStackString<> argsCopy( args );
+    AStackString<> argsCopy( options.m_Args );
     argsCopy += " -wrapperfinal";
 
     Process p;
-    if ( !p.Spawn( "fbuild.exe", argsCopy.Get(), options.GetWorkingDir().Get(), nullptr, true ) ) // true = forward output to our tty
+    if ( !p.Spawn( options.m_ProgramName.Get(), argsCopy.Get(), options.GetWorkingDir().Get(), nullptr, true ) ) // true = forward output to our tty
     {
         return FBUILD_FAILED_TO_SPAWN_WRAPPER_FINAL;
     }

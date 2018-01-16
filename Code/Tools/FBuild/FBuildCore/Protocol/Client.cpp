@@ -17,6 +17,7 @@
 #include "Tools/FBuild/FBuildCore/WorkerPool/Job.h"
 #include "Tools/FBuild/FBuildCore/WorkerPool/JobQueue.h"
 
+#include "Core/Env/Env.h"
 #include "Core/FileIO/ConstMemoryStream.h"
 #include "Core/FileIO/FileIO.h"
 #include "Core/FileIO/FileStream.h"
@@ -27,16 +28,22 @@
 // Defines
 //------------------------------------------------------------------------------
 #define CLIENT_STATUS_UPDATE_FREQUENCY_SECONDS ( 0.1f )
-#define CONNECTION_LIMIT ( 15 )
 #define CONNECTION_REATTEMPT_DELAY_TIME ( 10.0f )
 #define SYSTEM_ERROR_ATTEMPT_COUNT ( 3 )
+#define DIST_INFO( ... ) if ( m_DetailedLogging ) { FLOG_BUILD( __VA_ARGS__ ); }
 
 // CONSTRUCTOR
 //------------------------------------------------------------------------------
-Client::Client( const Array< AString > & workerList )
+Client::Client( const Array< AString > & workerList,
+                uint16_t port,
+                uint32_t workerConnectionLimit,
+                bool detailedLogging )
     : m_WorkerList( workerList )
     , m_ShouldExit( false )
     , m_Exited( false )
+    , m_DetailedLogging( detailedLogging )
+    , m_WorkerConnectionLimit( workerConnectionLimit )
+    , m_Port( port )
 {
     // allocate space for server states
     m_ServerList.SetSize( workerList.GetSize() );
@@ -53,7 +60,6 @@ Client::Client( const Array< AString > & workerList )
 Client::~Client()
 {
     SetShuttingDown();
-    m_EnsureNetworkStarted.Stop();
 
     m_ShouldExit = true;
     while ( m_Exited == false )
@@ -73,7 +79,8 @@ Client::~Client()
     ServerState * ss = (ServerState *)connection->GetUserData();
     ASSERT( ss );
 
-    MutexHolder mh( m_ServerListMutex );
+    MutexHolder mh( ss->m_Mutex );
+    DIST_INFO( "Disconnected: %s\n", ss->m_RemoteName.Get() );
     if ( ss->m_Jobs.IsEmpty() == false )
     {
         Job ** it = ss->m_Jobs.Begin();
@@ -167,7 +174,7 @@ void Client::LookForWorkers()
     }
 
     // limit maximum concurrent connections
-    if ( numConnections >= CONNECTION_LIMIT )
+    if ( numConnections >= m_WorkerConnectionLimit )
     {
         return;
     }
@@ -180,7 +187,7 @@ void Client::LookForWorkers()
 
     // randomize the start index to better distribute workers when there
     // are many workers/clients - otherwise all clients will attempt to connect
-    // to the first CONNECTION_LIMIT workers
+    // to the same subset of workers
     Random r;
     size_t startIndex = r.GetRandIndex( (uint32_t)numWorkers );
 
@@ -211,13 +218,14 @@ void Client::LookForWorkers()
             continue;
         }
 
-        const ConnectionInfo * ci = Connect( m_WorkerList[ i ], Protocol::PROTOCOL_PORT, 500 ); // 500ms connection timeout
+        const ConnectionInfo * ci = Connect( m_WorkerList[ i ], m_Port, 2000 ); // 2000ms connection timeout
         if ( ci == nullptr )
         {
             ss.m_DelayTimer.Start(); // reset connection attempt delay
         }
         else
         {
+            DIST_INFO( "Connected: %s\n", m_WorkerList[ i ].Get() );
             const uint32_t numJobsAvailable( JobQueue::IsValid() ? (uint32_t)JobQueue::Get().GetNumDistributableJobsAvailable() : 0 );
 
             ci->SetUserData( &ss );
@@ -228,8 +236,7 @@ void Client::LookForWorkers()
 
             // send connection msg
             Protocol::MsgConnection msg( numJobsAvailable );
-            MutexHolder mh2( ss.m_Mutex );
-            msg.Send( ci );
+            SendMessageInternal( ci, msg );
         }
 
         // limit to one connection attempt per iteration
@@ -275,11 +282,14 @@ void Client::CommunicateJobAvailability()
         if ( it->m_Connection )
         {
             MutexHolder ssMH( it->m_Mutex );
-            if ( it->m_NumJobsAvailable != numJobsAvailable )
+            if ( it->m_Connection )
             {
-                PROFILE_SECTION( "UpdateJobAvailability" )
-                msg.Send( it->m_Connection );
-                it->m_NumJobsAvailable = numJobsAvailable;
+                if ( it->m_NumJobsAvailable != numJobsAvailable )
+                {
+                    PROFILE_SECTION( "UpdateJobAvailability" )
+                    SendMessageInternal( it->m_Connection, msg );
+                    it->m_NumJobsAvailable = numJobsAvailable;
+                }
             }
         }
         ++it;
@@ -299,11 +309,12 @@ void Client::CheckForTimeouts()
     for ( ServerState * it = m_ServerList.Begin(); it != end; ++it )
     {
         ServerState & ss = *it;
+        MutexHolder ssMH( ss.m_Mutex );
         if ( ss.m_Connection )
         {
-            MutexHolder ssMH( it->m_Mutex );
-            if ( ss.m_StatusTimer.GetElapsedMS() >= Protocol::SERVER_STATUS_TIMEOUT )
+            if ( ss.m_StatusTimer.GetElapsedMS() >= Protocol::SERVER_STATUS_TIMEOUT_MS )
             {
+                DIST_INFO( "Timed out: %s\n", ss.m_RemoteName.Get() );
                 Disconnect( ss.m_Connection );
             }
         }
@@ -312,6 +323,37 @@ void Client::CheckForTimeouts()
             ASSERT( ss.m_Jobs.IsEmpty() );
         }
     }
+}
+
+// SendMessageInternal
+//------------------------------------------------------------------------------
+void Client::SendMessageInternal( const ConnectionInfo * connection, const Protocol::IMessage & msg )
+{
+    if ( msg.Send( connection ) )
+    {
+        return;
+    }
+
+    DIST_INFO( "Send Failed: %s (Type: %u, Size: %u)\n",
+                ((ServerState *)connection->GetUserData())->m_RemoteName.Get(),
+                (uint32_t)msg.GetType(),
+                msg.GetSize() );
+}
+
+// SendMessageInternal
+//------------------------------------------------------------------------------
+void Client::SendMessageInternal( const ConnectionInfo * connection, const Protocol::IMessage & msg, const MemoryStream & memoryStream )
+{
+    if ( msg.Send( connection, memoryStream ) )
+    {
+        return;
+    }
+
+    DIST_INFO( "Send Failed: %s (Type: %u, Size: %u, Payload: %u)\n",
+                ((ServerState *)connection->GetUserData())->m_RemoteName.Get(),
+                (uint32_t)msg.GetType(),
+                msg.GetSize(),
+                (uint32_t)memoryStream.GetSize() );
 }
 
 // OnReceive
@@ -387,6 +429,7 @@ void Client::CheckForTimeouts()
         {
             // unknown message type
             ASSERT( false ); // this indicates a protocol bug
+            DIST_INFO( "Protocol Error: %s\n", ss->m_RemoteName.Get() );
             Disconnect( connection );
             break;
         }
@@ -417,7 +460,7 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgRequ
     {
         MutexHolder mh( ss->m_Mutex );
         Protocol::MsgNoJobAvailable msg;
-        msg.Send( connection );
+        SendMessageInternal( connection, msg );
         return;
     }
 
@@ -429,7 +472,7 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgRequ
         // (we completed or gave away the job already)
         MutexHolder mh( ss->m_Mutex );
         Protocol::MsgNoJobAvailable msg;
-        msg.Send( connection );
+        SendMessageInternal( connection, msg );
         return;
     }
 
@@ -454,7 +497,7 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgRequ
     {
         PROFILE_SECTION( "SendJob" )
         Protocol::MsgJob msg( toolId );
-        msg.Send( connection, stream );
+        SendMessageInternal( connection, msg, stream );
     }
 }
 
@@ -493,23 +536,23 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgJobR
     ms.Read( size );
     const void * data = (const char *)ms.GetData() + ms.Tell();
 
-    // manage job races
-    bool cancelled( false );
-    Job * job = JobQueue::Get().OnReturnRemoteJob( jobId, cancelled );
-
     {
         MutexHolder mh( ss->m_Mutex );
-        Job ** iter = ss->m_Jobs.Find( job );
-        ASSERT( iter );
-        ss->m_Jobs.Erase( iter );
+        VERIFY( ss->m_Jobs.FindDerefAndErase( jobId ) );
     }
 
-    // has the job been cancelled in the interim?
-    if ( cancelled )
+    // Has the job been cancelled in the interim?
+    // (Due to a Race by the main thread for example)
+    Job * job = JobQueue::Get().OnReturnRemoteJob( jobId );
+    if ( job == nullptr )
     {
         // don't save result as we were cancelled
         return;
     }
+
+    DIST_INFO( "Got Result: %s - %s%s\n", ss->m_RemoteName.Get(), 
+                                          job->GetNode()->GetName().Get(), 
+                                          job->GetDistributionState() == Job::DIST_RACE_WON_REMOTELY ? " (Won Race)" : "" );
 
     if ( result == true )
     {
@@ -528,41 +571,20 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgJobR
             const uint32_t firstFileSize = *(uint32_t *)data;
             const uint32_t secondFileSize = on->IsUsingPDB() ? *(uint32_t *)( (const char *)data + sizeof( uint32_t ) + firstFileSize ) : 0;
 
-            FileStream fs;
-            if ( fs.Open( nodeName.Get(), FileStream::WRITE_ONLY ) == false )
-            {
-                FLOG_ERROR( "Failed to create file '%s'", nodeName.Get() );
-                result = false;
-            }
-            else if ( fs.WriteBuffer( (const char *)data + sizeof( uint32_t ), firstFileSize ) != firstFileSize )
-            {
-                FLOG_ERROR( "Failed to write file '%s'", nodeName.Get() );
-                result = false;
-            }
-            else if ( on->IsUsingPDB() ) // is there a second file?
+            result = WriteFileToDisk( nodeName, (const char *)data + sizeof( uint32_t ), firstFileSize );
+            if ( result && on->IsUsingPDB() )
             {
                 data = (const void *)( (const char *)data + sizeof( uint32_t ) + firstFileSize );
                 ASSERT( ( firstFileSize + secondFileSize + ( sizeof( uint32_t ) * 2 ) ) == size );
 
                 AStackString<> pdbName;
                 on->GetPDBName( pdbName );
-                FileStream fs2;
-                if ( fs2.Open( pdbName.Get(), FileStream::WRITE_ONLY ) == false )
-                {
-                    FLOG_ERROR( "Failed to create file '%s'", pdbName.Get() );
-                    result = false;
-                }
-                else if ( fs2.WriteBuffer( (const char *)data + sizeof( uint32_t ), secondFileSize ) != secondFileSize )
-                {
-                    FLOG_ERROR( "Failed to write file '%s'", pdbName.Get() );
-                    result = false;
-                }
+                result = WriteFileToDisk( pdbName, (const char *)data + sizeof( uint32_t ), secondFileSize );
             }
 
             if ( result == true )
             {
                 // record build time
-                fs.Close();
                 FileNode * f = (FileNode *)job->GetNode();
                 f->m_Stamp = FileIO::GetFileLastWriteTime( nodeName );
 
@@ -622,7 +644,7 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgJobR
             if ( job->GetSystemErrorCount() < SYSTEM_ERROR_ATTEMPT_COUNT )
             {
                 // re-queue job which will be re-attempted on another worker
-                JobQueue::Get().ReturnUnfinishedDistributableJob( job, systemError );
+                JobQueue::Get().ReturnUnfinishedDistributableJob( job );
                 return;
             }
 
@@ -652,7 +674,7 @@ void Client::Process( const ConnectionInfo * connection, const Protocol::MsgJobR
                       msgBuffer.Get() );
     }
 
-    JobQueue::Get().FinishedProcessingJob( job, result, true, false ); // remote job, not a race of a remote job
+    JobQueue::Get().FinishedProcessingJob( job, result, true ); // remote job
 }
 
 // Process( MsgRequestManifest )
@@ -757,6 +779,35 @@ const ToolManifest * Client::FindManifest( const ConnectionInfo * connection, ui
     }
 
     return nullptr;
+}
+
+// WriteFileToDisk
+//------------------------------------------------------------------------------
+bool Client::WriteFileToDisk( const AString & fileName, const char * data, const uint32_t dataSize ) const
+{
+    // Open the file
+    FileStream fs;
+    if ( fs.Open( fileName.Get(), FileStream::WRITE_ONLY ) == false )
+    {
+        // On Windows, we can occasionally fail to open the file with error 1224 (ERROR_USER_MAPPED_FILE), due to
+        // things like anti-virus etc. Simply retry if that happens
+        FileIO::WorkAroundForWindowsFilePermissionProblem( fileName );
+
+        if ( fs.Open( fileName.Get(), FileStream::WRITE_ONLY ) == false )
+        {
+            FLOG_ERROR( "Failed to create file '%s' (Err: %u)", fileName.Get(), Env::GetLastErr() );
+            return false;
+        }
+    }
+    
+    // Write the contents
+    if ( fs.WriteBuffer( data, dataSize ) != dataSize )
+    {
+        FLOG_ERROR( "Failed to write file '%s' (Err: %u)", fileName.Get(), Env::GetLastErr() );
+        return false;
+    }
+
+    return true;
 }
 
 // CONSTRUCTOR( ServerState )

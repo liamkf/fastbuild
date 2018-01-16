@@ -32,6 +32,7 @@ class Node;
 class ObjectListNode;
 class ObjectNode;
 class RemoveDirNode;
+class SettingsNode;
 class SLNNode;
 class TestNode;
 class UnityNode;
@@ -52,7 +53,7 @@ public:
     }
     inline ~NodeGraphHeader() = default;
 
-    enum { NODE_GRAPH_CURRENT_VERSION = 93 };
+    enum { NODE_GRAPH_CURRENT_VERSION = 104 };
 
     bool IsValid() const
     {
@@ -87,6 +88,7 @@ public:
 
     LoadResult Load( IOStream & stream, const char * nodeGraphDBFile );
     void Save( IOStream & stream, const char * nodeGraphDBFile ) const;
+    void Display( const Dependencies & dependencies ) const;
 
     // access existing nodes
     Node * FindNode( const AString & nodeName ) const;
@@ -96,51 +98,15 @@ public:
     // create new nodes
     CopyFileNode * CreateCopyFileNode( const AString & dstFileName );
     CopyDirNode * CreateCopyDirNode( const AString & nodeName );
-    RemoveDirNode * CreateRemoveDirNode(const AString & nodeName,
-                                        Dependencies & staticDeps,
-                                        const Dependencies & preBuildDependencies );
-    ExecNode * CreateExecNode( const AString & dstFileName,
-                               const Dependencies & inputFiles,
-                               FileNode * executable,
-                               const AString & arguments,
-                               const AString & workingDir,
-                               int32_t expectedReturnCode,
-                               const Dependencies & preBuildDependencies,
-                               bool useStdOutAsOutput );
+    RemoveDirNode * CreateRemoveDirNode( const AString & nodeName );
+    ExecNode * CreateExecNode( const AString & dstFileName );
     FileNode * CreateFileNode( const AString & fileName, bool cleanPath = true );
-    DirectoryListNode * CreateDirectoryListNode( const AString & name,
-                                                 const AString & path,
-                                                 const Array< AString > * patterns,
-                                                 bool recursive,
-                                                 const Array< AString > & excludePaths,
-                                                 const Array< AString > & filesToExclude,
-                                                 const Array< AString > & excludePatterns
-                                               );
+    DirectoryListNode * CreateDirectoryListNode( const AString & name );
     LibraryNode *   CreateLibraryNode( const AString & libraryName );
     ObjectNode *    CreateObjectNode( const AString & objectName );
     AliasNode *     CreateAliasNode( const AString & aliasName );
-    DLLNode *       CreateDLLNode( const AString & linkerOutputName,
-                                   const Dependencies & inputLibraries,
-                                   const Dependencies & otherLibraries,
-                                   const AString & linkerType,
-                                   const AString & linker,
-                                   const AString & linkerArgs,
-                                   uint32_t flags,
-                                   const Dependencies & assemblyResources,
-                                   const AString & importLibName,
-                                   Node * linkerStampExe,
-                                   const AString & linkerStampExeArgs );
-    ExeNode *       CreateExeNode( const AString & linkerOutputName,
-                                   const Dependencies & inputLibraries,
-                                   const Dependencies & otherLibraries,
-                                   const AString & linkerType,
-                                   const AString & linker,
-                                   const AString & linkerArgs,
-                                   uint32_t flags,
-                                   const Dependencies & assemblyResources,
-                                   const AString & importLibName,
-                                   Node * linkerStampExe,
-                                   const AString & linkerStampExeArgs );
+    DLLNode *       CreateDLLNode( const AString & dllName );
+    ExeNode *       CreateExeNode( const AString & exeName );
     UnityNode * CreateUnityNode( const AString & unityName );
     CSNode * CreateCSNode( const AString & csAssemblyName );
     TestNode * CreateTestNode( const AString & testOutput );
@@ -156,6 +122,7 @@ public:
                                            const AString & projectGuid,
                                            const AString & defaultLanguage,
                                            const AString & applicationEnvironment,
+                                           const bool projectSccEntrySAK,
                                            const Array< VSProjectConfig > & configs,
                                            const Array< VSProjectFileType > & fileTypes,
                                            const Array< AString > & references,
@@ -170,6 +137,7 @@ public:
                                 const Array< SLNSolutionFolder > & folders );
     ObjectListNode * CreateObjectListNode( const AString & listName );
     XCodeProjectNode * CreateXCodeProjectNode( const AString & name );
+    SettingsNode * CreateSettingsNode( const AString & name );
 
     void DoBuildPass( Node * nodeToBuild );
 
@@ -222,6 +190,8 @@ private:
     static void SaveRecurse( IOStream & stream, Node * node, Array< bool > & savedNodeFlags );
     static void SaveRecurse( IOStream & stream, const Dependencies & dependencies, Array< bool > & savedNodeFlags );
     bool LoadNode( IOStream & stream );
+    static void DisplayRecurse( Node * node, Array< bool > & savedNodeFlags, uint32_t depth, AString & outBuffer );
+    static void DisplayRecurse( const char * title, const Dependencies & dependencies, Array< bool > & savedNodeFlags, uint32_t depth, AString & outBuffer );
 
     enum { NODEMAP_TABLE_SIZE = 65536 };
     Node **         m_NodeMap;

@@ -18,7 +18,7 @@ class Array
 public:
     explicit Array();
     explicit Array( const Array< T > & other );
-    explicit Array( const T * begin, const T * end );
+    explicit Array( const T * otherBegin, const T * otherEnd );
     explicit Array( size_t initialCapacity, bool resizeable = false );
     ~Array();
 
@@ -58,12 +58,18 @@ public:
     template < class U >
     T * FindDeref( const U & obj ) const;
 
+    // find and erase
+    template < class U >
+    bool FindAndErase( const U & obj );
+    template < class U >
+    bool FindDerefAndErase( const U & obj );
+
     // add/remove items
     void Append( const T & item );
     template < class U >
     void Append( const Array< U > & other );
     template < class U >
-    void Append( const U * begin, const U * end );
+    void Append( const U * otherBegin, const U * otherEnd );
     void Pop();
     void PopFront(); // expensive - shuffles everything in the array!
     void Erase( T * const iter );
@@ -72,7 +78,7 @@ public:
     Array & operator = ( const Array< T > & other );
 
     // query state
-    inline bool     IsAtCapacity() const    { return ( m_End == m_MaxEnd ) && ( m_Resizeable == false ); }
+    inline bool     IsAtCapacity() const    { return ( m_End == m_MaxEnd ); }
     inline size_t   GetCapacity() const     { return ( m_MaxEnd - m_Begin ); }
     inline size_t   GetSize() const         { return ( m_End - m_Begin ); }
     inline bool     IsEmpty() const         { return ( m_Begin == m_End ); }
@@ -85,7 +91,9 @@ private:
     T * m_Begin;
     T * m_End;
     T * m_MaxEnd;
-    bool m_Resizeable;
+    #if defined( ASSERTS_ENABLED )
+        bool m_Resizeable;
+    #endif
 };
 
 // CONSTRUCTOR
@@ -95,7 +103,9 @@ Array< T >::Array()
     : m_Begin( nullptr )
     , m_End( nullptr )
     , m_MaxEnd( nullptr )
-    , m_Resizeable( true )
+    #if defined( ASSERTS_ENABLED )
+        , m_Resizeable( true )
+    #endif
 {
 }
 
@@ -111,11 +121,11 @@ Array< T >::Array( const Array< T > & other )
 // CONSTRUCTOR
 //------------------------------------------------------------------------------
 template < class T >
-Array< T >::Array( const T * begin, const T * end )
+Array< T >::Array( const T * otherBegin, const T * otherEnd )
 {
-    const size_t size = ( end - begin );
+    const size_t size = ( otherEnd - otherBegin );
     INPLACE_NEW (this) Array( size, true );
-    Append( begin, end );
+    Append( otherBegin, otherEnd );
 }
 
 // CONSTRUCTOR
@@ -125,7 +135,7 @@ Array< T >::Array( size_t initialCapacity, bool resizeable )
 {
     if ( initialCapacity )
     {
-        #ifdef ASSERTS_ENABLED
+        #if defined( ASSERTS_ENABLED )
             m_Resizeable = true; // allow initial allocation
         #endif
         m_Begin = Allocate( initialCapacity );
@@ -138,7 +148,11 @@ Array< T >::Array( size_t initialCapacity, bool resizeable )
         m_End = nullptr;
         m_MaxEnd = nullptr;
     }
-    m_Resizeable = resizeable;
+    #if defined( ASSERTS_ENABLED )
+        m_Resizeable = resizeable;
+    #else
+        (void)resizeable;
+    #endif
 }
 
 // DESTRUCTOR
@@ -216,8 +230,8 @@ void Array< T >::SetSize( size_t size )
     {
         // destroy excess items
         T * item = m_Begin + size;
-        T * end = m_End;
-        while ( item < end )
+        T * endItem = m_End;
+        while ( item < endItem )
         {
             item->~T();
             item++;
@@ -270,15 +284,21 @@ void Array< T >::Swap( Array< T > & other )
     T * tmpBegin = m_Begin;
     T * tmpEnd = m_End;
     T * tmpMaxEnd = m_MaxEnd;
-    bool tmpResizeable = m_Resizeable;
+    #if defined( ASSERTS_ENABLED )
+        bool tmpResizeable = m_Resizeable;
+    #endif
     m_Begin = other.m_Begin;
     m_End = other.m_End;
     m_MaxEnd = other.m_MaxEnd;
-    m_Resizeable = other.m_Resizeable;
+    #if defined( ASSERTS_ENABLED )
+        m_Resizeable = other.m_Resizeable;
+    #endif
     other.m_Begin = tmpBegin;
     other.m_End = tmpEnd;
     other.m_MaxEnd = tmpMaxEnd;
-    other.m_Resizeable = tmpResizeable;
+    #if defined( ASSERTS_ENABLED )
+        other.m_Resizeable = tmpResizeable;
+    #endif
 }
 
 // Find
@@ -288,8 +308,8 @@ template < class U >
 T * Array< T >::Find( const U & obj ) const
 {
     T * pos = m_Begin;
-    T * end = m_End;
-    while ( pos < end )
+    T * endPos = m_End;
+    while ( pos < endPos )
     {
         if ( *pos == obj )
         {
@@ -307,8 +327,8 @@ template < class U >
 T * Array< T >::FindDeref( const U & obj ) const
 {
     T * pos = m_Begin;
-    T * end = m_End;
-    while ( pos < end )
+    T * endPos = m_End;
+    while ( pos < endPos )
     {
         if ( *(*pos) == obj )
         {
@@ -317,6 +337,36 @@ T * Array< T >::FindDeref( const U & obj ) const
         pos++;
     }
     return nullptr;
+}
+
+// FindAndErase
+//------------------------------------------------------------------------------
+template < class T >
+template < class U >
+bool Array< T >::FindAndErase( const U & obj )
+{
+    T * iter = Find( obj );
+    if ( iter )
+    {
+        Erase( iter );
+        return true;
+    }
+    return false;
+}
+
+// FindAndEraseDeref
+//------------------------------------------------------------------------------
+template < class T >
+template < class U >
+bool Array< T >::FindDerefAndErase( const U & obj )
+{
+    T * iter = FindDeref( obj );
+    if ( iter )
+    {
+        Erase( iter );
+        return true;
+    }
+    return false;
 }
 
 // Append
@@ -336,10 +386,10 @@ void Array< T >::Append( const T & item )
 //------------------------------------------------------------------------------
 template < class T >
 template < class U >
-void Array< T >::Append( const Array< U > & other  )
+void Array< T >::Append( const Array< U > & other )
 {
-    U* end = other.End();
-    for ( U* it = other.Begin(); it != end; ++it )
+    U* endPos = other.End();
+    for ( U* it = other.Begin(); it != endPos; ++it )
     {
         Append( *it );
     }
@@ -349,9 +399,9 @@ void Array< T >::Append( const Array< U > & other  )
 //------------------------------------------------------------------------------
 template < class T >
 template < class U >
-void Array< T >::Append( const U * begin, const U * end )
+void Array< T >::Append( const U * otherBegin, const U * otherEnd )
 {
-    for ( const U* it = begin; it != end; ++it )
+    for ( const U* it = otherBegin; it != otherEnd; ++it )
     {
         Append( *it );
     }
@@ -431,8 +481,8 @@ Array< T > & Array< T >::operator = ( const Array< T > & other )
     m_End = m_Begin + otherSize;
     T * dst = m_Begin;
     T * src = other.m_Begin;
-    const T * end = m_End;
-    while ( dst < end )
+    const T * endPos = m_End;
+    while ( dst < endPos )
     {
         INPLACE_NEW ( dst ) T( *src );
         dst++;
@@ -475,7 +525,7 @@ void Array< T >::Grow()
 template < class T >
 T * Array< T >::Allocate( size_t numElements ) const
 {
-    ASSERT( m_Resizeable == true );
+    ASSERT( m_Resizeable );
     const size_t align = __alignof( T ) > sizeof( void * ) ? __alignof( T ) : sizeof( void * );
     return static_cast< T * >( ALLOC( sizeof( T ) * numElements, align ) );
 }

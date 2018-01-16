@@ -14,6 +14,7 @@
 //------------------------------------------------------------------------------
 class Args;
 class BFFIterator;
+class ConstMemoryStream;
 class Function;
 class NodeGraph;
 class NodeProxy;
@@ -57,8 +58,9 @@ public:
         FLAG_INCLUDES_IN_STDERR =   0x20000,
         FLAG_QT_RCC             =   0x40000,
         FLAG_WARNINGS_AS_ERRORS_MSVC    = 0x80000,
+        FLAG_VBCC               =   0x100000
     };
-    static uint32_t DetermineFlags( const Node * compilerNode,
+    static uint32_t DetermineFlags( const CompilerNode * compilerNode,
                                     const AString & args,
                                     bool creatingPCH,
                                     bool usingPCH );
@@ -106,10 +108,6 @@ private:
     void WriteToCache( Job * job );
     bool GetExtraCacheFilePath( const Job * job, AString & extraFileName ) const;
 
-    void HandleWarningsMSCL( Job* job, const char * data, uint32_t dataSize ) const;
-
-    static void DumpOutput( Job * job, const char * data, uint32_t dataSize, const AString & name, bool treatAsWarnings = false );
-
     void EmitCompilationMessage( const Args & fullArgs, bool useDeoptimization, bool stealingRemoteJob = false, bool racingRemoteJob = false, bool useDedicatedPreprocessor = false, bool isRemote = false ) const;
 
     enum Pass
@@ -140,13 +138,14 @@ private:
     friend class Client;
     bool ShouldUseCache() const;
     bool CanUseResponseFile() const;
+    bool GetVBCCPreprocessedOutput( ConstMemoryStream & outStream ) const;
 
     friend class FunctionObjectList;
 
     class CompileHelper
     {
     public:
-        explicit CompileHelper( bool handleOutput = true );
+        explicit CompileHelper( bool handleOutput = true, const volatile bool * abort = nullptr );
         ~CompileHelper();
 
         // start compilation
@@ -160,6 +159,7 @@ private:
         inline uint32_t                 GetOutSize() const { return m_OutSize; }
         inline const AutoPtr< char > &  GetErr() const { return m_Err; }
         inline uint32_t                 GetErrSize() const { return m_ErrSize; }
+        inline bool                     HasAborted() const { return m_Process.HasAborted(); }
 
     private:
         bool            m_HandleOutput;

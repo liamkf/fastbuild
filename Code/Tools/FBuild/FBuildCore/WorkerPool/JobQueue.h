@@ -62,7 +62,6 @@ public:
 
     // access state
     size_t GetNumDistributableJobsAvailable() const;
-    inline size_t GetDistributableJobsMemUsage() const { return m_DistributableJobsMemoryUsage; }
 
     void GetJobStats( uint32_t & numJobs, uint32_t & numJobsActive,
                       uint32_t & numJobsDist, uint32_t & numJobsDistActive ) const;
@@ -74,15 +73,15 @@ private:
     Job *       GetJobToProcess();
     Job *       GetDistributableJobToRace();
     static Node::BuildResult DoBuild( Job * job );
-    void        FinishedProcessingJob( Job * job, bool result, bool wasARemoteJob, bool localRaceOfRemoteJob );
+    void        FinishedProcessingJob( Job * job, bool result, bool wasARemoteJob );
 
-    void    QueueJob2( Job * job );
+    void        QueueDistributableJob( Job * job );
 
     // client side of protocol consumes jobs via this interface
     friend class Client;
     Job *       GetDistributableJobToProcess( bool remote );
-    Job *       OnReturnRemoteJob( uint32_t jobId, bool & cancelled );
-    void        ReturnUnfinishedDistributableJob( Job * job, bool systemError = false );
+    Job *       OnReturnRemoteJob( uint32_t jobId );
+    void        ReturnUnfinishedDistributableJob( Job * job );
 
     // Semaphore to manage work
     Semaphore           m_WorkerThreadSemaphore;
@@ -94,25 +93,10 @@ private:
     // Jobs in progress locally
     uint32_t            m_NumLocalJobsActive;
 
-    // Jobs available for distribution
-    mutable Mutex       m_DistributableAvailableJobsMutex;
-    Array< Job * >      m_DistributableAvailableJobs;
-    size_t              m_DistributableJobsMemoryUsage;
-
-    // Jobs in progress remotely
+    // Jobs available for distributed processing (can also be done locally)
     mutable Mutex       m_DistributedJobsMutex;
-    Array< Job * >      m_DistributedJobsRemote;        // Distributable job in progress remotely
-    Array< Job * >      m_DistributedJobsLocal;         // Distributable job in progress locally
-    Array< Job * >      m_DistributedJobsBeingRaced;    // Distributable job in progress remotely & locally
-    struct CancelledJob
-    {
-        inline CancelledJob( Job * job, uint32_t jobId ) : m_JobId( jobId ), m_Job( job ) {}
-        inline bool operator == ( uint32_t jobId ) const { return ( m_JobId == jobId ); }
-        inline bool operator == ( const Job * job ) const { return ( m_Job == job ); }
-        uint32_t    m_JobId;
-        Job *       m_Job;
-    };
-    Array< CancelledJob > m_DistributedJobsCancelled;       // Distirbutable job in progress remotely, which should be discarded upon completion
+    Array< Job * >      m_DistributableJobs_Available;  // Available, not in progress anywhere
+    Array< Job * >      m_DistributableJobs_InProgress; // In progress remotely, locally or both
 
     // Semaphore to manage thread idle
     Semaphore           m_MainThreadSemaphore;

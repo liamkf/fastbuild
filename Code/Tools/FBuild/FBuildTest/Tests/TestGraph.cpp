@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #include "FBuildTest.h"
 #include "Tools/FBuild/FBuildCore/FBuild.h"
+#include "Tools/FBuild/FBuildCore/BFF/BFFIterator.h"
 #include "Tools/FBuild/FBuildCore/Graph/AliasNode.h"
 #include "Tools/FBuild/FBuildCore/Graph/CompilerNode.h"
 #include "Tools/FBuild/FBuildCore/Graph/CopyFileNode.h"
@@ -15,8 +16,9 @@
 #include "Tools/FBuild/FBuildCore/Graph/ExecNode.h"
 #include "Tools/FBuild/FBuildCore/Graph/FileNode.h"
 #include "Tools/FBuild/FBuildCore/Graph/LibraryNode.h"
-#include "Tools/FBuild/FBuildCore/Graph/ObjectNode.h"
 #include "Tools/FBuild/FBuildCore/Graph/NodeGraph.h"
+#include "Tools/FBuild/FBuildCore/Graph/ObjectNode.h"
+#include "Tools/FBuild/FBuildCore/Graph/SettingsNode.h"
 #include "Tools/FBuild/FBuildCore/Graph/UnityNode.h"
 
 #include "Core/Containers/AutoPtr.h"
@@ -109,34 +111,26 @@ void TestGraph::TestNodeTypes() const
         #endif
         TEST_ASSERT( n->GetType() == Node::COPY_FILE_NODE );
         TEST_ASSERT( CopyFileNode::GetTypeS() == Node::COPY_FILE_NODE );
-        TEST_ASSERT( AStackString<>( "Copy" ) == n->GetTypeName() );
+        TEST_ASSERT( AStackString<>( "CopyFile" ) == n->GetTypeName() );
     }
 
-    Array< AString > patterns;
-    patterns.Append( AStackString<>( "*.cpp" ) );
     #if defined( __WINDOWS__ )
-        DirectoryListNode * dn = ng.CreateDirectoryListNode( AStackString<>( "path\\|*.cpp|false|" ),
-                                                             AStackString<>( "path\\" ),
+        DirectoryListNode * dn = ng.CreateDirectoryListNode( AStackString<>( "path\\|*.cpp|false|" ) );
     #else
-        DirectoryListNode * dn = ng.CreateDirectoryListNode( AStackString<>( "path/|*.cpp|false|" ),
-                                                             AStackString<>( "path/" ),
+        DirectoryListNode * dn = ng.CreateDirectoryListNode( AStackString<>( "path/|*.cpp|false|" ) );
     #endif
-                                                             &patterns,
-                                                             false,
-                                                             Array< AString >(),
-                                                             Array< AString >(),
-                                                             Array< AString >() );
     TEST_ASSERT( dn->GetType() == Node::DIRECTORY_LIST_NODE );
     TEST_ASSERT( DirectoryListNode::GetTypeS() == Node::DIRECTORY_LIST_NODE );
     TEST_ASSERT( AStackString<>( "Directory" ) == dn->GetTypeName() );
 
     {
-        Dependencies empty;
-        Dependencies inputs;
-        inputs.Append( Dependency( fn ) );
-        Node * n = ng.CreateExecNode( AStackString<>( "dst" ), inputs, fn, AStackString<>( "args" ), AStackString<>( "workingDir" ), 0, empty, false );
+        #if defined( __WINDOWS__ )
+            Node * n = ng.CreateExecNode( AStackString<>( "c:\\execdummy" ) );
+        #else
+            Node * n = ng.CreateExecNode( AStackString<>( "/execdummy/execdummy" ) );
+        #endif
         TEST_ASSERT( n->GetType() == Node::EXEC_NODE );
-        TEST_ASSERT( ExecNode::GetTypeS() == Node::EXEC_NODE);
+        TEST_ASSERT( ExecNode::GetTypeS() == Node::EXEC_NODE );
         TEST_ASSERT( AStackString<>( "Exec" ) == n->GetTypeName() );
     }
     {
@@ -166,17 +160,23 @@ void TestGraph::TestNodeTypes() const
         TEST_ASSERT( AStackString<>( "Alias" ) == n->GetTypeName() );
     }
     {
-        Dependencies libraries( 1, false );
-        libraries.Append( Dependency( fn ) );
-        Node * n = ng.CreateDLLNode( AStackString<>( "zz.dll" ), libraries, Dependencies(), AString::GetEmpty(), AString::GetEmpty(), AString::GetEmpty(), 0, Dependencies(), AStackString<>(), nullptr, AString::GetEmpty() );
+        #if defined( __WINDOWS__ )
+            AStackString<> dllName( "c:\\lib.dll" );
+        #else
+            AStackString<> dllName( "/tmp/lib.so" );
+        #endif
+        Node * n = ng.CreateDLLNode( dllName );
         TEST_ASSERT( n->GetType() == Node::DLL_NODE );
         TEST_ASSERT( DLLNode::GetTypeS() == Node::DLL_NODE );
         TEST_ASSERT( AStackString<>( "DLL" ) == n->GetTypeName() );
     }
     {
-        Dependencies libraries( 1, false );
-        libraries.Append( Dependency( fn ) );
-        Node * n = ng.CreateExeNode( AStackString<>( "zz.exe" ), libraries, Dependencies(), AString::GetEmpty(), AString::GetEmpty(), AString::GetEmpty(), 0, Dependencies(), AStackString<>(),nullptr, AString::GetEmpty() );
+        #if defined( __WINDOWS__ )
+            AStackString<> exeName( "c:\\exe.exe" );
+        #else
+            AStackString<> exeName( "/tmp/exe.exe" );
+        #endif
+        Node * n = ng.CreateExeNode( exeName );
         TEST_ASSERT( n->GetType() == Node::EXE_NODE );
         TEST_ASSERT( ExeNode::GetTypeS() == Node::EXE_NODE );
         TEST_ASSERT( AStackString<>( "Exe" ) == n->GetTypeName() );
@@ -245,29 +245,29 @@ void TestGraph::TestDirectoryListNode() const
     FBuild fb;
     NodeGraph ng;
 
-    // make sure a node of the name we are going to use doesn't exist
+    // Generate a valid DirectoryListNode name
+    AStackString<> name;
     #if defined( __WINDOWS__ )
         const AStackString<> testFolder( "Data\\TestGraph\\" );
     #else
         const AStackString<> testFolder( "Data/TestGraph/" );
     #endif
-
     Array< AString > patterns;
     patterns.Append( AStackString<>( "library.*" ) );
+    DirectoryListNode::FormatName( testFolder,
+                                   &patterns,
+                                   true, // recursive
+                                   Array< AString >(), // excludePaths,
+                                   Array< AString >(), // excludeFiles,
+                                   Array< AString >(), // excludePatterns,
+                                   name );
 
     // create the node, and make sure we can access it by name
-    #if defined( __WINDOWS__ )
-        const AStackString<> name( "Data\\TestGraph\\|library.*|true|" );
-    #else
-        const AStackString<> name( "Data/TestGraph/|library.*|true|" );
-    #endif
-    DirectoryListNode * node = ng.CreateDirectoryListNode( name,
-                                                           testFolder,
-                                                           &patterns,
-                                                           true,
-                                                           Array< AString >(),
-                                                           Array< AString >(),
-                                                           Array< AString >() );
+    DirectoryListNode * node = ng.CreateDirectoryListNode( name );
+    node->m_Path = testFolder;
+    node->m_Patterns = patterns;
+    BFFIterator iter;
+    TEST_ASSERT( node->Initialize( ng, iter, nullptr ) );
     TEST_ASSERT( ng.FindNode( name ) == node );
 
     TEST_ASSERT( fb.Build( node ) );
@@ -485,6 +485,7 @@ void TestGraph::TestNoStopOnFirstError() const
     options.m_ShowSummary = true;   // required to generate stats for node count checks
     options.m_NumWorkerThreads = 0; // ensure test behaves deterministically
     options.m_ConfigFile = "Data/TestGraph/NoStopOnFirstError/fbuild.bff";
+    options.m_FastCancel = true;
 
     // "Stop On First Error" build (default behaviour)
     {
@@ -594,13 +595,15 @@ void TestGraph::BFFDirtied() const
 
         // Ensure Settings() are being read in, since tests below
         // are verifying they don't persist when the BFF changes
-        TEST_ASSERT( fBuild.GetCachePath().IsEmpty() == false );
+        TEST_ASSERT( fBuild.GetSettings()->GetCachePath().IsEmpty() == false );
         TEST_ASSERT( fBuild.GetEnvironmentStringSize() > 0 );
-        TEST_ASSERT( fBuild.GetWorkerList().IsEmpty() == false );
+        TEST_ASSERT( fBuild.GetSettings()->GetWorkerList().IsEmpty() == false );
     }
 
     #if defined( __OSX__ )
         Thread::Sleep( 1000 ); // Work around low time resolution of HFS+
+    #elif defined( __LINUX__ )
+        Thread::Sleep( 1000 ); // Work around low time resolution of ext2/ext3/reiserfs and time caching used by used by others
     #endif
 
     // Modity BFF (make it empty)
@@ -618,9 +621,9 @@ void TestGraph::BFFDirtied() const
         TEST_ASSERT( GetRecordedOutput().Find( "has changed (reparsing will occur)" ) );
 
         // Make sure settings don't "leak" from the original BFF into the new one
-        TEST_ASSERT( fBuild.GetCachePath().IsEmpty() );
+        TEST_ASSERT( fBuild.GetSettings()->GetCachePath().IsEmpty() );
         TEST_ASSERT( fBuild.GetEnvironmentStringSize() == 0 );
-        TEST_ASSERT( fBuild.GetWorkerList().IsEmpty() );
+        TEST_ASSERT( fBuild.GetSettings()->GetWorkerList().IsEmpty() );
     }
 }
 

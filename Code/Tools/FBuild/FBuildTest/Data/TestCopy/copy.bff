@@ -72,7 +72,18 @@ CopyDir( 'CopyDir' )
 {
     .SourcePaths        = 'Data/TestCopy'
     .SourcePathsPattern = '*.txt'
+    .SourcePathsRecurse = false
     .Dest               = '$Out$/Test/Copy/CopyDir/'
+}
+
+//
+// CopyDirDeleteSrc
+//
+CopyDir( 'CopyDirDeleteSrc' )
+{
+    .SourcePaths        = '$Out$/Test/Copy/CopyDirDeleteSrc/Src/'
+    .SourcePathsPattern = '*.txt'
+    .Dest               = '$Out$/Test/Copy/CopyDirDeleteSrc/Dst/'
 }
 
 //

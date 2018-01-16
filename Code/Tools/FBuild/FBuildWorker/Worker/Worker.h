@@ -25,7 +25,7 @@ class WorkerSettings;
 class Worker
 {
 public:
-    explicit Worker( void * hInstance, const AString & args );
+    explicit Worker( void * hInstance, const AString & args, bool consoleMode );
     ~Worker();
 
     int Work();
@@ -38,12 +38,11 @@ private:
 
     inline bool InConsoleMode() const { return ( m_MainWindow == nullptr ); }
 
-    void StatusMessage( const char * fmtString, ... ) const;
-    void ErrorMessage( const char * fmtString, ... ) const;
+    void StatusMessage( const char * fmtString, ... ) const FORMAT_STRING( 2, 3 );
+    void ErrorMessage( const char * fmtString, ... ) const FORMAT_STRING( 2, 3 );
 
     WorkerWindow        * m_MainWindow;
     Server              * m_ConnectionPool;
-    JobQueueRemote      * m_JobQueueRemote;
     NetworkStartupHelper * m_NetworkStartupHelper;
     WorkerSettings      * m_WorkerSettings;
     IdleDetection       m_IdleDetection;

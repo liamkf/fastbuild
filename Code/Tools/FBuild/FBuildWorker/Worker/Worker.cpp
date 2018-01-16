@@ -12,6 +12,7 @@
 #include "WorkerSettings.h"
 
 // FBuild
+#include "Tools/FBuild/FBuildCore/FBuild.h"
 #include "Tools/FBuild/FBuildCore/FBuildVersion.h"
 #include "Tools/FBuild/FBuildCore/Protocol/Protocol.h"
 #include "Tools/FBuild/FBuildCore/Protocol/Server.h"
@@ -31,7 +32,7 @@
 
 // CONSTRUCTOR
 //------------------------------------------------------------------------------
-Worker::Worker( void * hInstance, const AString & args )
+Worker::Worker( void * hInstance, const AString & args, bool consoleMode )
     : m_MainWindow( nullptr )
     , m_ConnectionPool( nullptr )
     , m_NetworkStartupHelper( nullptr )
@@ -44,13 +45,18 @@ Worker::Worker( void * hInstance, const AString & args )
 {
     m_WorkerSettings = FNEW( WorkerSettings );
     m_NetworkStartupHelper = FNEW( NetworkStartupHelper );
-    m_JobQueueRemote = FNEW( JobQueueRemote( Env::GetNumProcessors() ) );
-    #if defined( __WINDOWS__ )
-        m_MainWindow = FNEW( WorkerWindow( hInstance ) );
-    #else
-        (void)hInstance;
-    #endif
     m_ConnectionPool = FNEW( Server );
+    if ( consoleMode == true )
+    {
+        #if __WINDOWS__
+            VERIFY( ::AllocConsole() );
+            (void)freopen("CONOUT$", "w", stdout);
+        #endif
+    }
+    else
+    {
+        m_MainWindow = FNEW( WorkerWindow( hInstance ) );
+    }
 
     Env::GetExePath( m_BaseExeName );
     if ( m_BaseExeName.Replace( ".copy", "" ) != 1 )
@@ -69,7 +75,6 @@ Worker::~Worker()
     FDELETE m_NetworkStartupHelper;
     FDELETE m_ConnectionPool;
     FDELETE m_MainWindow;
-    FDELETE m_JobQueueRemote;
     FDELETE m_WorkerSettings;
 
     if ( m_RestartNeeded )
@@ -99,7 +104,7 @@ int Worker::Work()
     // We just create this folder whether it's needed or not
     {
         AStackString<> tmpPath;
-        VERIFY( FileIO::GetTempDir( tmpPath ) );
+        VERIFY( FBuild::GetTempDir( tmpPath ) );
         #if defined( __WINDOWS__ )
             tmpPath += ".fbuild.tmp\\target\\include";
         #else
@@ -144,7 +149,7 @@ int Worker::Work()
 
         PROFILE_SYNCHRONIZE
 
-        Thread::Sleep( 100 );
+        Thread::Sleep( 500 );
     }
 
     // allow to UI to shutdown
@@ -177,7 +182,7 @@ bool Worker::HasEnoughDiskSpace()
 
         // Check available disk space of temp path
         AStackString<> tmpPath;
-        VERIFY( FileIO::GetTempDir( tmpPath ) );
+        VERIFY( FBuild::GetTempDir( tmpPath ) );
         BOOL result = GetDiskFreeSpaceExA( tmpPath.Get(), (PULARGE_INTEGER)&freeBytesAvailable, (PULARGE_INTEGER)&totalNumberOfBytes, (PULARGE_INTEGER)&totalNumberOfFreeBytes );
         if ( result && ( freeBytesAvailable >= MIN_DISK_SPACE ) )
         {
@@ -263,7 +268,7 @@ void Worker::UpdateUI()
     if ( InConsoleMode() )
     {
         status += '\n';
-        StatusMessage( status.Get() );
+        StatusMessage( "%s", status.Get() );
     }
     else
     {
@@ -324,8 +329,15 @@ void Worker::CheckForExeUpdate()
         return; // not running as a copy to allow restarts
     }
 
-    /// get the current last write time
+    // get the current last write time
     uint64_t lastWriteTime = FileIO::GetFileLastWriteTime( m_BaseExeName );
+
+    // If exe is has been deleted, but not replaced, do nothing
+    // (may be part of two step delete/replace)
+    if ( lastWriteTime == 0 )
+    {
+        return;
+    }
 
     // store the time when we were launch (first time in this function)
     if ( m_LastWriteTime == 0 )

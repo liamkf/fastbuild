@@ -37,6 +37,7 @@
 // Static Data
 //------------------------------------------------------------------------------
 /*static*/ bool FLog::s_ShowInfo = false;
+/*static*/ bool FLog::s_ShowBuildCommands = true;
 /*static*/ bool FLog::s_ShowErrors = true;
 /*static*/ bool FLog::s_ShowProgress = false;
 /*static*/ bool FLog::s_MonitorEnabled = false;
@@ -97,7 +98,7 @@ static FileStream * g_MonitorFileStream = nullptr;
     va_end( args );
 
     AStackString< 1024 > finalBuffer;
-    finalBuffer.Format( "%llu %s", Time::GetCurrentFileTime(), buffer.Get() );
+    finalBuffer.Format( "%" PRIu64 " %s", Time::GetCurrentFileTime(), buffer.Get() );
 
     MutexHolder lock( g_MonitorMutex );
     g_MonitorFileStream->WriteBuffer( finalBuffer.Get(), finalBuffer.GetLength() );
@@ -191,7 +192,7 @@ static FileStream * g_MonitorFileStream = nullptr;
         //  - it's not uniquified per instance
         //  - we already have a .fbuild.tmp folder we should use
         AStackString<> fullPath;
-        FileIO::GetTempDir( fullPath );
+        FBuild::GetTempDir( fullPath );
         fullPath += "FastBuild/FastBuildLog.log";
 
         ASSERT( g_MonitorFileStream == nullptr );
@@ -315,6 +316,13 @@ static FileStream * g_MonitorFileStream = nullptr;
 
     // finally print it
     fwrite( m_ProgressText.Get(), 1, m_ProgressText.GetLength(), stdout );
+}
+
+// ClearProgress
+//------------------------------------------------------------------------------
+/*static*/ void FLog::ClearProgress()
+{
+    fwrite( g_ClearLineString.Get(), 1, g_ClearLineString.GetLength(), stdout );    
 }
 
 // TracingOutputCallback

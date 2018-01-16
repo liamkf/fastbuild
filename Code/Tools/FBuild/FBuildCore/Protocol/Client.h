@@ -13,6 +13,7 @@
 // Forward Declarations
 //------------------------------------------------------------------------------
 class Job;
+class MemoryStream;
 namespace Protocol
 {
     class IMessage;
@@ -29,7 +30,10 @@ class ToolManifest;
 class Client : public TCPConnectionPool
 {
 public:
-    explicit Client( const Array< AString > & workerList );
+    Client( const Array< AString > & workerList,
+            uint16_t port,
+            uint32_t workerConnectionLimit,
+            bool detailedLogging );
     ~Client();
 
 private:
@@ -43,6 +47,7 @@ private:
     void Process( const ConnectionInfo * connection, const Protocol::MsgServerStatus * msg );
 
     const ToolManifest * FindManifest( const ConnectionInfo * connection, uint64_t toolId ) const;
+    bool WriteFileToDisk( const AString & fileName, const char * data, const uint32_t dataSize ) const;
 
     static uint32_t ThreadFuncStatic( void * param );
     void            ThreadFunc();
@@ -51,9 +56,14 @@ private:
     void            CommunicateJobAvailability();
     void            CheckForTimeouts();
 
+    // More verbose name to avoid conflict with windows.h SendMessage
+    void            SendMessageInternal( const ConnectionInfo * connection, const Protocol::IMessage & msg );
+    void            SendMessageInternal( const ConnectionInfo * connection, const Protocol::IMessage & msg, const MemoryStream & memoryStream );
+
     Array< AString >    m_WorkerList;   // workers to connect to
     volatile bool       m_ShouldExit;   // signal from main thread
     volatile bool       m_Exited;       // flagged on exit
+    bool                m_DetailedLogging;
     Thread::ThreadHandle m_Thread;      // the thread to find and manage workers
 
     // state
@@ -78,6 +88,8 @@ private:
     };
     Mutex                   m_ServerListMutex;
     Array< ServerState >    m_ServerList;
+    uint32_t                m_WorkerConnectionLimit;
+    uint16_t                m_Port;
 };
 
 //------------------------------------------------------------------------------

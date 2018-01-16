@@ -32,6 +32,9 @@ public:
     inline void SetCacheName( const AString & cacheName ) { m_CacheName = cacheName; }
     inline const AString & GetCacheName() const { return m_CacheName; }
 
+    inline const volatile bool * GetAbortFlagPointer() const { return &m_Abort; }
+    void Cancel();
+
     // associate some data with this object, and destroy it when freed
     void    OwnData( void * data, size_t size, bool compressed = false );
 
@@ -50,7 +53,7 @@ public:
     inline const Array< AString > & GetMessages() const { return m_Messages; }
 
     // logging interface
-    void                Error( const char * format, ... );
+    void                Error( const char * format, ... ) FORMAT_STRING( 2, 3 );
     void                ErrorPreformatted( const char * message );
 
     // Flag "system failures" - i.e. not a compilation failure, but some other problem (typically a remote worker misbehaving)
@@ -63,15 +66,39 @@ public:
 
     void                GetMessagesForMonitorLog( AString & buffer ) const;
 
+    enum DistributionState
+    {
+        DIST_NONE                           = 0, // All non-distributable jobs
+        DIST_AVAILABLE                      = 1, // A distributable job, not in progress
+
+        DIST_BUILDING_REMOTELY              = 2, // Building remotely only
+        DIST_COMPLETED_REMOTELY             = 3, // Completed remotely, but not finalized (don't start racing)
+
+        DIST_BUILDING_LOCALLY               = 4, // Building locally only
+        DIST_COMPLETED_LOCALLY              = 5, // Completed locally, but not finalized
+
+        DIST_RACING                         = 6, // Building locally AND remotely
+        DIST_RACE_WON_LOCALLY               = 7, // Completed locally, but still in flight remotely
+        DIST_RACE_WON_REMOTELY_CANCEL_LOCAL = 8, // Completed remotely, waiting for local job to cancel
+        DIST_RACE_WON_REMOTELY              = 9, // Completed remotely, local job cancelled successfully
+    };
+    inline void                 SetDistributionState( DistributionState state ) { m_DistributionState = state; }
+    inline DistributionState    GetDistributionState() const                    { return m_DistributionState; }
+
+    // Access total memory usage by job data
+    static inline uint64_t     GetTotalLocalDataMemoryUsage() { return s_TotalLocalDataMemoryUsage; }
+
 private:
     uint32_t            m_JobId             = 0;
     uint32_t            m_DataSize          = 0;
     Node *              m_Node              = nullptr;
     void *              m_Data              = nullptr;
     void *              m_UserData          = nullptr;
+    volatile bool       m_Abort             = false;
     bool                m_DataIsCompressed  = false;
     bool                m_IsLocal           = true;
     uint8_t             m_SystemErrorCount  = 0; // On client, the total error count, on the worker a flag for the current attempt
+    DistributionState   m_DistributionState = DIST_NONE;
     AString             m_RemoteName;
     AString             m_RemoteSourceRoot;
     AString             m_CacheName;
@@ -79,6 +106,8 @@ private:
     ToolManifest *      m_ToolManifest      = nullptr;
 
     Array< AString >    m_Messages;
+
+    static int64_t s_TotalLocalDataMemoryUsage; // Total memory being managed by OwnData
 };
 
 //------------------------------------------------------------------------------

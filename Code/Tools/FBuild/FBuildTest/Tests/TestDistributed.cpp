@@ -3,7 +3,7 @@
 
 // Includes
 //------------------------------------------------------------------------------
-#include "TestFramework/UnitTest.h"
+#include "Tools/FBuild/FBuildTest/Tests/FBuildTest.h"
 
 #include "Tools/FBuild/FBuildCore/FBuild.h"
 #include "Tools/FBuild/FBuildCore/Protocol/Protocol.h"
@@ -13,9 +13,13 @@
 #include "Core/FileIO/FileIO.h"
 #include "Core/Strings/AStackString.h"
 
+// Defines
+//------------------------------------------------------------------------------
+#define TEST_PROTOCOL_PORT ( Protocol::PROTOCOL_PORT + 1 ) // Avoid conflict with real worker
+
 // TestDistributed
 //------------------------------------------------------------------------------
-class TestDistributed : public UnitTest
+class TestDistributed : public FBuildTest
 {
 private:
     DECLARE_TESTS
@@ -25,7 +29,9 @@ private:
     void WithPCH() const;
     void RegressionTest_RemoteCrashOnErrorFormatting();
     void TestLocalRace();
+    void RemoteRaceWinRemote();
     void AnonymousNamespaces();
+    void ErrorsAreCorrectlyReported() const;
     void TestForceInclude() const;
     void TestZiDebugFormat() const;
     void TestZiDebugFormat_Local() const;
@@ -45,7 +51,9 @@ REGISTER_TESTS_BEGIN( TestDistributed )
     REGISTER_TEST( WithPCH )
     REGISTER_TEST( RegressionTest_RemoteCrashOnErrorFormatting )
     REGISTER_TEST( TestLocalRace )
+    REGISTER_TEST( RemoteRaceWinRemote )
     REGISTER_TEST( AnonymousNamespaces )
+    REGISTER_TEST( ErrorsAreCorrectlyReported )
     #if defined( __WINDOWS__ )
         REGISTER_TEST( TestForceInclude )
         REGISTER_TEST( TestZiDebugFormat )
@@ -64,15 +72,15 @@ void TestDistributed::TestHelper( const char * target, uint32_t numRemoteWorkers
     options.m_NumWorkerThreads = 1;
     options.m_NoLocalConsumptionOfRemoteJobs = true; // ensure all jobs happen on the remote worker
     options.m_AllowLocalRace = allowRace;
+    options.m_EnableMonitor = true; // make sure monitor code paths are tested as well
+    options.m_DistributionPort = TEST_PROTOCOL_PORT;
     FBuild fBuild( options );
 
     TEST_ASSERT( fBuild.Initialize() );
 
-    JobQueueRemote jqr( numRemoteWorkers );
-
     // start a client to emulate the other end
-    Server s;
-    s.Listen( Protocol::PROTOCOL_PORT );
+    Server s( numRemoteWorkers );
+    s.Listen( TEST_PROTOCOL_PORT );
 
     // clean up anything left over from previous runs
     Array< AString > files;
@@ -155,6 +163,30 @@ void TestDistributed::TestLocalRace()
     }
 }
 
+// RemoteRaceWinRemote
+//------------------------------------------------------------------------------
+void TestDistributed::RemoteRaceWinRemote()
+{
+    // Check that a remote race that is won remotely is correctly handled
+    FBuildOptions options;
+    options.m_ConfigFile = "Data/TestDistributed/RemoteRaceWinRemote/fbuild.bff";
+    options.m_AllowDistributed = true;
+    options.m_NumWorkerThreads = 1;
+    options.m_ForceCleanBuild = true;
+    options.m_EnableMonitor = true; // make sure monitor code paths are tested as well
+    options.m_ShowSummary = true;
+    options.m_NoLocalConsumptionOfRemoteJobs = true;
+    FBuild fBuild( options );
+
+    TEST_ASSERT( fBuild.Initialize() );
+
+    // start a client to emulate the other end
+    Server s( 1 );
+    s.Listen( Protocol::PROTOCOL_PORT );
+
+    TEST_ASSERT( fBuild.Build( AStackString<>( "RemoteRaceWinRemote" ) ) );
+}
+
 // AnonymousNamespaces
 //------------------------------------------------------------------------------
 void TestDistributed::AnonymousNamespaces()
@@ -175,6 +207,53 @@ void TestDistributed::TestForceInclude() const
     TestHelper( target, 4 );
 }
 
+// ErrorsAreCorrectlyReported
+//------------------------------------------------------------------------------
+void TestDistributed::ErrorsAreCorrectlyReported() const
+{
+    FBuildOptions options;
+    options.m_ConfigFile = "Data/TestDistributed/ErrorsAreCorrectlyReported/fbuild.bff";
+    options.m_AllowDistributed = true;
+    options.m_NumWorkerThreads = 1;
+    options.m_NoLocalConsumptionOfRemoteJobs = true; // ensure all jobs happen on the remote worker
+    options.m_AllowLocalRace = false;
+    options.m_ForceCleanBuild = true;
+    options.m_EnableMonitor = true; // make sure monitor code paths are tested as well
+    options.m_DistributionPort = TEST_PROTOCOL_PORT;
+
+    // start a client to emulate the other end
+    Server s( 1 );
+    s.Listen( TEST_PROTOCOL_PORT );
+
+    // MSVC
+    #if defined( __WINDOWS__ )
+        {
+            FBuild fBuild( options );
+            TEST_ASSERT( fBuild.Initialize() );
+
+            // Check that build fails
+            TEST_ASSERT( false == fBuild.Build( AStackString<>( "ErrorsAreCorrectlyReported-MSVC" ) ) );
+
+            // Check that error is returned
+            TEST_ASSERT( GetRecordedOutput().Find( "error C2143: syntax error : missing ';' before '}'" ) );
+        }
+    #endif
+
+    // Clang
+    #if defined( __WINDOWS__ ) // TODO:B Enable for OSX and Linux
+        {
+            FBuild fBuild( options );
+            TEST_ASSERT( fBuild.Initialize() );
+
+            // Check that build fails
+            TEST_ASSERT( false == fBuild.Build( AStackString<>( "ErrorsAreCorrectlyReported-Clang" ) ) );
+
+            // Check that error is returned
+            TEST_ASSERT( GetRecordedOutput().Find( "fatal error: expected ';' at end of declaration" ) );
+        }
+    #endif
+}
+
 // TestZiDebugFormat
 //------------------------------------------------------------------------------
 void TestDistributed::TestZiDebugFormat() const
@@ -186,15 +265,15 @@ void TestDistributed::TestZiDebugFormat() const
     options.m_NoLocalConsumptionOfRemoteJobs = true; // ensure all jobs happen on the remote worker
     options.m_AllowLocalRace = false;
     options.m_ForceCleanBuild = true;
+    options.m_EnableMonitor = true; // make sure monitor code paths are tested as well
+    options.m_DistributionPort = TEST_PROTOCOL_PORT;
     FBuild fBuild( options );
 
     TEST_ASSERT( fBuild.Initialize() );
 
-    JobQueueRemote jqr( 1 );
-
     // start a client to emulate the other end
-    Server s;
-    s.Listen( Protocol::PROTOCOL_PORT );
+    Server s( 1 );
+    s.Listen( TEST_PROTOCOL_PORT );
 
     TEST_ASSERT( fBuild.Build( AStackString<>( "remoteZi" ) ) );
 }
@@ -207,15 +286,15 @@ void TestDistributed::TestZiDebugFormat_Local() const
     options.m_ConfigFile = "Data/TestDistributed/fbuild.bff";
     options.m_AllowDistributed = true;
     options.m_ForceCleanBuild = true;
+    options.m_EnableMonitor = true; // make sure monitor code paths are tested as well
+    options.m_DistributionPort = TEST_PROTOCOL_PORT;
     FBuild fBuild( options );
 
     TEST_ASSERT( fBuild.Initialize() );
 
-    JobQueueRemote jqr( 1 );
-
     // start a client to emulate the other end
-    Server s;
-    s.Listen( Protocol::PROTOCOL_PORT );
+    Server s( 1 );
+    s.Listen( TEST_PROTOCOL_PORT );
 
     TEST_ASSERT( fBuild.Build( AStackString<>( "remoteZi" ) ) );
 }
@@ -231,15 +310,15 @@ void TestDistributed::D8049_ToolLongDebugRecord() const
     options.m_NoLocalConsumptionOfRemoteJobs = true; // ensure all jobs happen on the remote worker
     options.m_AllowLocalRace = false;
     options.m_ForceCleanBuild = true;
+    options.m_EnableMonitor = true; // make sure monitor code paths are tested as well
+    options.m_DistributionPort = TEST_PROTOCOL_PORT;
     FBuild fBuild( options );
 
     TEST_ASSERT( fBuild.Initialize() );
 
-    JobQueueRemote jqr( 1 );
-
     // start a client to emulate the other end
-    Server s;
-    s.Listen( Protocol::PROTOCOL_PORT );
+    Server s( 1 );
+    s.Listen( TEST_PROTOCOL_PORT );
 
     TEST_ASSERT( fBuild.Build( AStackString<>( "D8049" ) ) );
 }

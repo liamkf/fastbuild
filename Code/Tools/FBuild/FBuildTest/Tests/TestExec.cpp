@@ -204,6 +204,8 @@ void TestExec::Build_ExecCommand_SingleInputChange() const
         // OS X FileSystem time granularity is poor, so we need to ensure enough time passes
         // so file is seen as modified
         Thread::Sleep( 1000 );
+    #elif defined( __LINUX__ )
+        Thread::Sleep( 1000 ); // Work around low time resolution of ext2/ext3/reiserfs and time caching used by used by others
     #endif
     CreateInputFile( inFile_oneInput );
 
@@ -303,6 +305,7 @@ void TestExec::Build_ExecCommand_ExpectedFailures() const
     FBuildOptions options;
     options.m_ConfigFile = "Data/TestExec/exec.bff";
     options.m_ForceCleanBuild = true;
+    options.m_FastCancel = true;
 
     FBuild fBuild(options);
     fBuild.Initialize();

@@ -30,6 +30,8 @@ private:
     void TestPCHWithCache() const;
     void TestPCHWithCache_NoRebuild() const;
     void PreventUselessCacheTraffic_MSVC() const;
+    void CacheUniqueness() const;
+    void Deoptimization() const;
 
     // Clang on Windows
     #if defined( __WINDOWS__ )
@@ -47,6 +49,8 @@ REGISTER_TESTS_BEGIN( TestPrecompiledHeaders )
     REGISTER_TEST( TestPCH_NoRebuild )
     REGISTER_TEST( TestPCHWithCache )
     REGISTER_TEST( TestPCHWithCache_NoRebuild )
+    REGISTER_TEST( CacheUniqueness )
+    REGISTER_TEST( Deoptimization )
     #if defined( __WINDOWS__ )
         REGISTER_TEST( PreventUselessCacheTraffic_MSVC )
         REGISTER_TEST( TestPCHClangWindows )
@@ -101,18 +105,18 @@ void TestPrecompiledHeaders::TestPCH() const
 
     // Check stats
     //                      Seen,   Built,  Type
-    uint32_t numF = 3; // pch.h / slow.h / pchuser.cpp
+    uint32_t numF = 4; // pch.h / slow.h / pchuser.cpp
     #if defined( __WINDOWS__ )
         numF++; // pch.cpp
     #endif
-    CheckStatsNode ( stats, numF,   2,      Node::FILE_NODE );
+    CheckStatsNode ( stats, numF,   3,      Node::FILE_NODE );
     CheckStatsNode ( stats, 1,      1,      Node::COMPILER_NODE );
     CheckStatsNode ( stats, 2,      2,      Node::OBJECT_NODE );// obj + pch obj
     CheckStatsNode ( stats, 1,      1,      Node::OBJECT_LIST_NODE );
     CheckStatsNode ( stats, 1,      1,      Node::DIRECTORY_LIST_NODE );
     CheckStatsNode ( stats, 1,      1,      Node::ALIAS_NODE );
     CheckStatsNode ( stats, 1,      1,      Node::EXE_NODE );
-    CheckStatsTotal( stats, numF+7, 9 );
+    CheckStatsTotal( stats, numF+7, 10 );
 
     // check we wrote all objects to the cache
     TEST_ASSERT( stats.GetStatsFor( Node::OBJECT_NODE ).m_NumCacheStores == 2 ); // pch and obj using pch
@@ -126,7 +130,7 @@ void TestPrecompiledHeaders::TestPCH_NoRebuild() const
 
     // Check stats
     //                      Seen,   Built,  Type
-    uint32_t numF = 3; // pch.h / slow.h / pchuser.cpp
+    uint32_t numF = 4; // pch.h / slow.h / pchuser.cpp / linker exe
     #if defined( __WINDOWS__ )
         numF++; // pch.cpp
     #endif
@@ -169,18 +173,18 @@ void TestPrecompiledHeaders::TestPCHWithCache() const
 
     // Check stats
     //                      Seen,   Built,  Type
-    uint32_t numF = 3; // pch.h / slow.h / pchuser.cpp
+    uint32_t numF = 4; // pch.h / slow.h / pchuser.cpp / linker exe
     #if defined( __WINDOWS__ )
         numF++; // pch.cpp
     #endif
-    CheckStatsNode ( stats, numF,   2,      Node::FILE_NODE );  // cpp + pch
+    CheckStatsNode ( stats, numF,   3,      Node::FILE_NODE );  // cpp + pch
     CheckStatsNode ( stats, 1,      1,      Node::COMPILER_NODE );
     CheckStatsNode ( stats, 2,      0,      Node::OBJECT_NODE ); // obj + pch obj
     CheckStatsNode ( stats, 1,      1,      Node::OBJECT_LIST_NODE );
     CheckStatsNode ( stats, 1,      1,      Node::DIRECTORY_LIST_NODE );
     CheckStatsNode ( stats, 1,      1,      Node::ALIAS_NODE );
     CheckStatsNode ( stats, 1,      1,      Node::EXE_NODE );
-    CheckStatsTotal( stats, 7+numF, 7 );
+    CheckStatsTotal( stats, 7+numF, 8 );
 
     // check all objects came from the cache
     TEST_ASSERT( stats.GetStatsFor( Node::OBJECT_NODE ).m_NumCacheHits == 2 ); // pch & obj
@@ -194,7 +198,7 @@ void TestPrecompiledHeaders::TestPCHWithCache_NoRebuild() const
 
     // Check stats
     //                      Seen,   Built,  Type
-    uint32_t numF = 3; // pch.h / slow.h / pchuser.cpp
+    uint32_t numF = 4; // pch.h / slow.h / pchuser.cpp / linker exe
     #if defined( __WINDOWS__ )
         numF++; // pch.cpp
     #endif
@@ -243,6 +247,105 @@ void TestPrecompiledHeaders::PreventUselessCacheTraffic_MSVC() const
         TEST_ASSERT( stats.GetStatsFor( Node::OBJECT_NODE ).m_NumCacheStores == 0 );
     }
 
+}
+
+// CacheUniqueness
+//------------------------------------------------------------------------------
+void TestPrecompiledHeaders::CacheUniqueness() const
+{
+    // Two headers, differing only in unused defines
+    const char * pchA = "Data/TestPrecompiledHeaders/CacheUniqueness/PrecompiledHeaderA.h";
+    const char * pchB = "Data/TestPrecompiledHeaders/CacheUniqueness/PrecompiledHeaderB.h";
+    const char * dstPCH = "../../../../tmp/Test/PrecompiledHeaders/CacheUniqueness/PrecompiledHeader.h";
+    #if defined( __WINDOWS__ )
+        // On windows we need a CPP to create the PCH
+        const char * pchCPP = "Data/TestPrecompiledHeaders/CacheUniqueness/PrecompiledHeader.cpp";
+        const char * dstPCHCPP = "../../../../tmp/Test/PrecompiledHeaders/CacheUniqueness/PrecompiledHeader.cpp";
+    #endif
+    const char * pchUser = "Data/TestPrecompiledHeaders/CacheUniqueness/PCHUser.cpp";
+    const char * dstPCHUser = "../../../../tmp/Test/PrecompiledHeaders/CacheUniqueness/PCHUser.cpp";
+
+    // Copy the files to the tmp Dir
+    TEST_ASSERT( FileIO::EnsurePathExists( AStackString<>( "../../../../tmp/Test/PrecompiledHeaders/CacheUniqueness/" ) ) );
+    TEST_ASSERT( FileIO::FileCopy( pchA, dstPCH ) );
+    #if defined( __WINDOWS__ )
+        TEST_ASSERT( FileIO::FileCopy( pchCPP, dstPCHCPP ) );
+    #endif
+    TEST_ASSERT( FileIO::FileCopy( pchUser, dstPCHUser ) );
+
+    FBuildOptions baseOptions;
+    baseOptions.m_ConfigFile = "Data/TestPrecompiledHeaders/CacheUniqueness/fbuild.bff";
+    baseOptions.m_ForceCleanBuild = true;
+    baseOptions.m_ShowSummary = true; // required to generate stats for node count checks
+
+    // Compile A
+    {
+        FBuildOptions options( baseOptions );
+        options.m_UseCacheWrite = true;
+
+        FBuild fBuild( options );
+        TEST_ASSERT( fBuild.Initialize( nullptr ) );
+
+        AStackString<> target( "PCHTest-Uniqueness" );
+
+        TEST_ASSERT( fBuild.Build( target ) );
+
+        // Ensure we stored to the cache
+        TEST_ASSERT( fBuild.GetStats().GetCacheStores() == 2 );
+    }
+
+    // Replace header with one that differs only by the define it declares
+    TEST_ASSERT( FileIO::FileCopy( pchB, dstPCH ) );
+
+    // Compile B
+    {
+        FBuildOptions options( baseOptions );
+        options.m_UseCacheRead = true;
+
+        FBuild fBuild( options );
+        TEST_ASSERT( fBuild.Initialize( nullptr ) );
+
+        AStackString<> target( "PCHTest-Uniqueness" );
+
+        TEST_ASSERT( fBuild.Build( target ) );
+
+        // Should not have retrieved from the cache
+        TEST_ASSERT( fBuild.GetStats().GetCacheHits() == 0 );
+    }
+}
+
+// Deoptimization
+//------------------------------------------------------------------------------
+void TestPrecompiledHeaders::Deoptimization() const
+{
+    // Initialize
+    FBuildOptions options;
+    options.m_ConfigFile = "Data/TestPrecompiledHeaders/Deoptimization/fbuild.bff";
+    options.m_ForceCleanBuild = true;
+    options.m_ShowSummary = true; // required to generate stats for node count checks
+
+    FBuild fBuild( options );
+    TEST_ASSERT( fBuild.Initialize( nullptr ) );
+
+    // Copy files to temp dir
+    TEST_ASSERT( FileIO::EnsurePathExists( AStackString<>( "../../../../tmp/Test/PrecompiledHeaders/Deoptimization/" ) ) );
+    TEST_ASSERT( FileIO::FileCopy( "Data/TestPrecompiledHeaders/Deoptimization/PrecompiledHeader.cpp", "../../../../tmp/Test/PrecompiledHeaders/Deoptimization/PrecompiledHeader.cpp" ) );
+    TEST_ASSERT( FileIO::FileCopy( "Data/TestPrecompiledHeaders/Deoptimization/PrecompiledHeader.h", "../../../../tmp/Test/PrecompiledHeaders/Deoptimization/PrecompiledHeader.h" ) );
+
+    // Mark copied files as writable, which normally activates deoptimization (since we have it enabled)
+    // It should be ignored for the precompiled header (which is what we are testing)
+    TEST_ASSERT( FileIO::SetReadOnly( "../../../../tmp/Test/PrecompiledHeaders/Deoptimization/PrecompiledHeader.cpp", false ) );
+    TEST_ASSERT( FileIO::SetReadOnly( "../../../../tmp/Test/PrecompiledHeaders/Deoptimization/PrecompiledHeader.h", false ) );
+
+    AStackString<> target( "PCHTest-Deoptimization" );
+
+    TEST_ASSERT( fBuild.Build( target ) );
+
+    CheckStatsNode ( 1,      1,      Node::OBJECT_NODE );
+    CheckStatsNode ( 1,      1,      Node::OBJECT_LIST_NODE );
+
+    // Make sure nothing was deoptimized
+    TEST_ASSERT( GetRecordedOutput().FindI( "**Deoptimized**" ) == nullptr );
 }
 
 // TestPCHClang

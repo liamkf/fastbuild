@@ -23,9 +23,13 @@ private:
     void AStackStringConstructors() const;
     void AStackStringOverflow() const;
     void BigString() const;
+    void Compare() const;
     void Concatenation() const;
+    void EmbeddedNuls() const;
     void EndsWithI() const;
+    void Equals() const;
     void Find() const;
+    void Format() const;
     void Tokenize() const;
     void PatternMatch() const;
     void PatternMatchI() const;
@@ -41,9 +45,13 @@ REGISTER_TESTS_BEGIN( TestAString )
     REGISTER_TEST( AStackStringConstructors )
     REGISTER_TEST( AStackStringOverflow )
     REGISTER_TEST( BigString )
+    REGISTER_TEST( Compare )
     REGISTER_TEST( Concatenation )
+    REGISTER_TEST( EmbeddedNuls )
     REGISTER_TEST( EndsWithI )
+    REGISTER_TEST( Equals )
     REGISTER_TEST( Find )
+    REGISTER_TEST( Format )
     REGISTER_TEST( Tokenize )
     REGISTER_TEST( PatternMatch )
     REGISTER_TEST( PatternMatchI )
@@ -225,6 +233,25 @@ void TestAString::BigString() const
     TEST_ASSERT( string.GetLength() == AString::StrLen( string.Get() ) );
 }
 
+// Compare
+//------------------------------------------------------------------------------
+void TestAString::Compare() const
+{
+    AStackString<> str( "hello" );
+
+    // Equals
+    TEST_ASSERT( 0 == str.Compare( "hello" ) );
+    TEST_ASSERT( 0 == str.Compare( AStackString<>( "hello" ) ) );
+    TEST_ASSERT( 0 != str.Compare( "goodbye" ) );
+    TEST_ASSERT( 0 != str.Compare( AStackString<>( "goodbye" ) ) );
+
+    // EqualsI
+    TEST_ASSERT( 0 == str.CompareI( "hEllO" ) );
+    TEST_ASSERT( 0 == str.CompareI( AStackString<>( "hEllO" ) ) );
+    TEST_ASSERT( 0 != str.CompareI( "goodbye" ) );
+    TEST_ASSERT( 0 != str.CompareI( AStackString<>( "goodbye" ) ) );
+}
+
 // Concatenation
 //------------------------------------------------------------------------------
 void TestAString::Concatenation() const
@@ -249,6 +276,78 @@ void TestAString::Concatenation() const
         AString a;
         const char * b = "";
         a.Append( b, 0 );
+    }
+}
+
+// EmbeddedNuls
+//------------------------------------------------------------------------------
+void TestAString::EmbeddedNuls() const
+{
+    // Create a string with an embedded nul and check various behaviours
+    AStackString<> string( "0123456789" );
+    const uint32_t originalStringLen = string.GetLength();
+    string[ 5 ] = 0; // insert null terminator
+
+    // Copy construction
+    {
+        AString copy( string );
+        TEST_ASSERT( copy.GetLength() == originalStringLen );
+        TEST_ASSERT( memcmp( "01234" "\0" "6789", copy.Get(), originalStringLen ) == 0 );
+    }
+
+    // Assignment (operator =)
+    {
+        AString copy;
+        copy = string;
+        TEST_ASSERT( copy.GetLength() == originalStringLen );
+        TEST_ASSERT( memcmp( "01234" "\0" "6789", copy.Get(), originalStringLen ) == 0 );
+    }
+
+    // Assignment (Assign)
+    {
+        AString copy;
+        copy.Assign( string );
+        TEST_ASSERT( copy.GetLength() == originalStringLen );
+        TEST_ASSERT( memcmp( "01234" "\0" "6789", copy.Get(), originalStringLen ) == 0 );
+    }
+
+    // Assignment (Assign with iterators)
+    {
+        AString copy;
+        copy.Assign( string.Get(), string.GetEnd() );
+        TEST_ASSERT( copy.GetLength() == originalStringLen );
+        TEST_ASSERT( memcmp( "01234" "\0" "6789", copy.Get(), originalStringLen ) == 0 );
+    }
+
+    // Append (operator +=)
+    {
+        // Append to empty
+        AString copy;
+        copy += string;
+        TEST_ASSERT( copy.GetLength() == originalStringLen );
+        TEST_ASSERT( AString::StrNCmp( string.Get(), copy.Get(), originalStringLen ) == 0 );
+        TEST_ASSERT( memcmp( "01234" "\0" "6789", copy.Get(), originalStringLen ) == 0 );
+
+        // Append to existing
+        AString copy2( string );
+        copy2 += string;
+        TEST_ASSERT( copy2.GetLength() == ( originalStringLen * 2 ) );
+        TEST_ASSERT( memcmp( "01234" "\0" "678901234" "\0" "6789", copy2.Get(), ( originalStringLen * 2 ) ) == 0 );
+    }
+
+    // Append (Append)
+    {
+        // Append to empty
+        AString copy;
+        copy.Append( string );
+        TEST_ASSERT( copy.GetLength() == originalStringLen );
+        TEST_ASSERT( memcmp( "01234" "\0" "6789", copy.Get(), originalStringLen ) == 0 );
+
+        // Append to existing
+        AString copy2( string );
+        copy2.Append( string );
+        TEST_ASSERT( copy2.GetLength() == ( originalStringLen * 2 ) );
+        TEST_ASSERT( memcmp( "01234" "\0" "678901234" "\0" "6789", copy2.Get(), ( originalStringLen * 2 ) ) == 0 );
     }
 }
 
@@ -288,6 +387,25 @@ void TestAString::EndsWithI() const
     }
 }
 
+// Equals
+//------------------------------------------------------------------------------
+void TestAString::Equals() const
+{
+    AStackString<> str( "hello" );
+
+    // Equals
+    TEST_ASSERT( true == str.Equals( "hello" ) );
+    TEST_ASSERT( true == str.Equals( AStackString<>( "hello" ) ) );
+    TEST_ASSERT( false == str.Equals( "goodbye" ) );
+    TEST_ASSERT( false == str.Equals( AStackString<>( "goodbye" ) ) );
+
+    // EqualsI
+    TEST_ASSERT( true == str.EqualsI( "hEllO" ) );
+    TEST_ASSERT( true == str.EqualsI( AStackString<>( "hEllO" ) ) );
+    TEST_ASSERT( false == str.EqualsI( "goodbye" ) );
+    TEST_ASSERT( false == str.EqualsI( AStackString<>( "goodbye" ) ) );
+}
+
 // Find
 //------------------------------------------------------------------------------
 void TestAString::Find() const
@@ -299,6 +417,25 @@ void TestAString::Find() const
         TEST_ASSERT(tmp.Find('X') == nullptr ); // This was OK
         TEST_ASSERT(tmp.Find('X', tmp.Get() + 8) == nullptr); // This was returning junk data past end of string
     }
+}
+
+// Format
+//------------------------------------------------------------------------------
+void TestAString::Format() const
+{
+    // Create a really long input string
+    AStackString<> longInput;
+    const size_t longStringLen( 1024 * 1024 );
+    for ( size_t i=0; i<longStringLen; ++i )
+    {
+        longInput += 'A';
+    }
+
+    // Make sure we correctly handle formatting large strings
+    AStackString<> buffer;
+    buffer.Format( "%s", longInput.Get() );
+    TEST_ASSERT( buffer.GetLength() == longStringLen );
+    TEST_ASSERT( AString::StrLen( buffer.Get() ) == longStringLen );
 }
 
 // Tokenize

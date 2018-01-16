@@ -86,6 +86,7 @@ public:
         SLN_NODE            = 17,
         REMOVE_DIR_NODE     = 18,
         XCODEPROJECT_NODE   = 19,
+        SETTINGS_NODE       = 20,
         // Make sure you update 's_NodeTypeNames' in the cpp
         NUM_NODE_TYPES      // leave this last
     };
@@ -232,13 +233,14 @@ protected:
     static void FixupPathForVSIntegration( AString & line );
     static void FixupPathForVSIntegration_GCC( AString & line, const char * tag );
     static void FixupPathForVSIntegration_SNC( AString & line, const char * tag );
+    static void FixupPathForVSIntegration_VBCC( AString & line, const char * tag );
 
     static void Serialize( IOStream & stream, const void * base, const ReflectionInfo & ri );
     static void Serialize( IOStream & stream, const void * base, const ReflectedProperty & property );
     static bool Deserialize( IOStream & stream, void * base, const ReflectionInfo & ri );
     static bool Deserialize( IOStream & stream, void * base, const ReflectedProperty & property );
 
-    bool            InitializePreBuildDependencies( NodeGraph & nodeGraph,  
+    bool            InitializePreBuildDependencies( NodeGraph & nodeGraph,
                                                     const BFFIterator & iter,
                                                     const Function * function,
                                                     const Array< AString > & preBuildDependencyNames );

@@ -81,7 +81,7 @@
         returnCode = Thread::WaitForThread( handle, sleepInterval, timedOut );
 
         // Are we shutting down?
-        if ( NetworkStartupHelper::IsStarted() == false )
+        if ( NetworkStartupHelper::IsShuttingDown() )
         {
             returnCode = 0; // ignore whatever we may have gotten back
             break;
@@ -129,6 +129,8 @@
     {
         PROFILE_FUNCTION
 
+        NetworkStartupHelper helper;
+
         AStackString<> hostName;
 
         {
@@ -140,8 +142,6 @@
             MemoryBarrier();
             data->safeToFree = true;
         }
-
-        ASSERT( NetworkStartupHelper::IsStarted() ); // ensure network is up
 
         // perform lookup
         {
