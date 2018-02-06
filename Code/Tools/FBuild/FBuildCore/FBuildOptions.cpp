@@ -100,12 +100,17 @@ FBuildOptions::OptionsResult FBuildOptions::ProcessCommandLine( int argc, char *
                     OUTPUT( "FBuild: Error: Missing or bad <sizeMiB> for '-cachetrim' argument\n" );
                     OUTPUT( "Try \"%s -help\"\n", programName.Get() );
                     return OPTIONS_ERROR;
-                }                
+                }
                 i++; // skip extra arg we've consumed
 
                 // add to args we might pass to subprocess
                 m_Args += ' ';
                 m_Args += argv[ sizeIndex ];
+                continue;
+            }
+            else if ( thisArg == "-cacheverbose" )
+            {
+                m_CacheVerbose = true;
                 continue;
             }
             else if ( thisArg == "-clean" )
@@ -233,6 +238,7 @@ FBuildOptions::OptionsResult FBuildOptions::ProcessCommandLine( int argc, char *
             else if ( thisArg == "-verbose" )
             {
                 m_ShowInfo = true;
+                m_CacheVerbose = true;
                 continue;
             }
             else if ( thisArg == "-version" )
@@ -441,6 +447,7 @@ void FBuildOptions::DisplayHelp( const AString & programName ) const
             " -cache[read|write] Control use of the build cache.\n"
             " -cacheinfo     Output cache statistics.\n"
             " -cachetrim [size] Trim the cache to the given size in MiB.\n"
+            " -cacheverbose  Emit details about cache interactions.\n"
             " -clean         Force a clean build.\n"
             " -config [path] Explicitly specify the config file to use.\n" );
 #ifdef DEBUG
@@ -490,7 +497,7 @@ void FBuildOptions::DisplayVersion() const
         #define VERSION_CONFIG " "
     #endif
     OUTPUT( "FASTBuild - " FBUILD_VERSION_STRING " " FBUILD_VERSION_PLATFORM VERSION_CONFIG " - "
-            "Copyright 2012-2017 Franta Fulin - http://www.fastbuild.org\n" );
+            "Copyright 2012-2018 Franta Fulin - http://www.fastbuild.org\n" );
     #undef VERSION_CONFIG
 }
 
