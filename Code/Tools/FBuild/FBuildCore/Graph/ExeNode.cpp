@@ -13,50 +13,37 @@
 #include "Core/FileIO/IOStream.h"
 #include "Core/Strings/AStackString.h"
 
+// Reflection
+//------------------------------------------------------------------------------
+REFLECT_NODE_BEGIN( ExeNode, LinkerNode, MetaNone() )
+REFLECT_END( ExeNode )
+
 // CONSTRUCTOR
 //------------------------------------------------------------------------------
-ExeNode::ExeNode( const AString & linkerOutputName,
-				  const Dependencies & inputLibraries,
-				  const Dependencies & otherLibraries,
-				  const AString & linkerType,
-				  const AString & linker,
-				  const AString & linkerArgs,
-				  uint32_t flags,
-				  const Dependencies & assemblyResources,
-				  const AString & importLibName,
-				  Node * linkerStampExe,
-				  const AString & linkerStampExeArgs )
-: LinkerNode( linkerOutputName, inputLibraries, otherLibraries, linkerType, linker, linkerArgs, flags, assemblyResources, importLibName, linkerStampExe, linkerStampExeArgs )
+ExeNode::ExeNode()
+    : LinkerNode()
 {
-	m_Type = EXE_NODE;
+    m_Type = EXE_NODE;
 }
 
 // DESTRUCTOR
 //------------------------------------------------------------------------------
-ExeNode::~ExeNode()
-{
-}
+ExeNode::~ExeNode() = default;
 
 // Load
 //------------------------------------------------------------------------------
-/*static*/ Node * ExeNode::Load( IOStream & stream )
+/*static*/ Node * ExeNode::Load( NodeGraph & nodeGraph, IOStream & stream )
 {
-    // common Linker properties
-	NODE_LOAD( AStackString<>,	name );
-	NODE_LOAD( AStackString<>,	linkerType );
-	NODE_LOAD( AStackString<>,	linker );
-	NODE_LOAD( AStackString<>,	linkerArgs );
-	NODE_LOAD_DEPS( 0,			inputLibs);
-	NODE_LOAD( uint32_t,		flags );
-	NODE_LOAD_DEPS( 0,			assemblyResources );
-	NODE_LOAD_DEPS( 0,			otherLibs );
-	NODE_LOAD( AStackString<>,	importLibName );
-    NODE_LOAD_NODE( Node,		linkerStampExe );
-    NODE_LOAD( AStackString<>,  linkerStampExeArgs );
+    NODE_LOAD( AStackString<>, name );
 
-	NodeGraph & ng = FBuild::Get().GetDependencyGraph();
-	ExeNode * en = ng.CreateExeNode( name, inputLibs, otherLibs, linkerType, linker, linkerArgs, flags, assemblyResources, importLibName, linkerStampExe, linkerStampExeArgs );
-	return en;
+    ExeNode * node = nodeGraph.CreateExeNode( name );
+
+    if ( node->Deserialize( nodeGraph, stream ) == false )
+    {
+        return nullptr;
+    }
+
+    return node;
 }
 
 //------------------------------------------------------------------------------

@@ -1,8 +1,6 @@
 // MetaData.h
 //------------------------------------------------------------------------------
 #pragma once
-#ifndef CORE_REFLECTION_METADATA_H
-#define CORE_REFLECTION_METADATA_H
 
 // Forward Declarations
 //------------------------------------------------------------------------------
@@ -23,9 +21,9 @@ IMetaData & MetaNone();
 // Basic MetaData Types
 //------------------------------------------------------------------------------
 IMetaData & MetaFile( bool relative = false );
+IMetaData & MetaHidden();
 IMetaData & MetaOptional();
 IMetaData & MetaPath( bool relative = false );
 IMetaData & MetaRange( uint32_t minVal, uint32_t maxVal );
 
 //------------------------------------------------------------------------------
-#endif // CORE_REFLECTION_METADATA_H

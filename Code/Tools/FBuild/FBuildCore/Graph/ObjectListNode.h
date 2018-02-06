@@ -1,8 +1,6 @@
 // ObjectListNode.h - manages a list of ObjectNodes
 //------------------------------------------------------------------------------
 #pragma once
-#ifndef FBUILD_GRAPH_OBJECTLISTNODE_H
-#define FBUILD_GRAPH_OBJECTLISTNODE_H
 
 // Includes
 //------------------------------------------------------------------------------
@@ -12,74 +10,96 @@
 // Forward Declarations
 //------------------------------------------------------------------------------
 class Args;
-class DirectoryListNode;
+class BFFIterator;
 class CompilerNode;
+class Function;
+class NodeGraph;
 class ObjectNode;
 
 // ObjectListNode
 //------------------------------------------------------------------------------
 class ObjectListNode : public Node
 {
+    REFLECT_NODE_DECLARE( ObjectListNode )
 public:
-	explicit ObjectListNode( const AString & listName,
-							 const Dependencies & inputNodes,
-							 CompilerNode * compiler,
-							 const AString & compilerArgs,
-							 const AString & compilerArgsDeoptimized,
-							 const AString & compilerOutputPath,
-							 ObjectNode * precompiledHeader,
-							 const Dependencies & compilerForceUsing,
-							 const Dependencies & preBuildDependencies,
-							 bool deoptimizeWritableFiles,
-							 bool deoptimizeWritableFilesWithToken,
-							 bool allowDistribution,
-							 bool allowCaching,
-							 CompilerNode * preprocessor,
-							 const AString & preprocessorArgs,
-							 const AString & baseDirectory );
-	virtual ~ObjectListNode();
+    ObjectListNode();
+    bool Initialize( NodeGraph & nodeGraph, const BFFIterator & iter, const Function * function );
+    virtual ~ObjectListNode();
 
-	static inline Node::Type GetTypeS() { return Node::OBJECT_LIST_NODE; }
+    static inline Node::Type GetTypeS() { return Node::OBJECT_LIST_NODE; }
 
-	virtual bool IsAFile() const override;
+    virtual bool IsAFile() const override;
 
-	static Node * Load( IOStream & stream );
-	virtual void Save( IOStream & stream ) const override;
+    static Node * Load( NodeGraph & nodeGraph, IOStream & stream );
+    virtual void Save( IOStream & stream ) const override;
 
-	const char * GetObjExtension() const;
+    const char * GetObjExtension() const;
 
-	void GetInputFiles( Args & fullArgs, const AString & pre, const AString & post ) const;
-	void GetInputFiles( Array< AString > & files ) const;
+    void GetInputFiles( Args & fullArgs, const AString & pre, const AString & post, bool objectsInsteadOfLibs ) const;
+    void GetInputFiles( Array< AString > & files ) const;
 
-	inline const AString & GetCompilerArgs() const { return m_CompilerArgs; }
+    CompilerNode * GetCompiler() const;
+    CompilerNode * GetPreprocessor() const;
+
+    inline const AString & GetCompilerOptions() const { return m_CompilerOptions; }
 protected:
-	friend class FunctionObjectList;
+    friend class FunctionObjectList;
 
-    virtual bool GatherDynamicDependencies( bool forceClean );
-	virtual bool DoDynamicDependencies( bool forceClean ) override;
-	virtual BuildResult DoBuild( Job * job ) override;
+    virtual bool GatherDynamicDependencies( NodeGraph & nodeGraph, bool forceClean );
+    virtual bool DoDynamicDependencies( NodeGraph & nodeGraph, bool forceClean ) override;
+    virtual BuildResult DoBuild( Job * job ) override;
 
-	// internal helpers
-	bool CreateDynamicObjectNode( Node * inputFile, const AString & baseDir, bool isUnityNode = false, bool isIsolatedFromUnityNode = false );
+    // internal helpers
+    bool CreateDynamicObjectNode( NodeGraph & nodeGraph, Node * inputFile, const AString & baseDir, bool isUnityNode = false, bool isIsolatedFromUnityNode = false );
+    ObjectNode * CreateObjectNode( NodeGraph & nodeGraph,
+                                   const BFFIterator & iter,
+                                   const Function * function,
+                                   const uint32_t flags,
+                                   const uint32_t preprocessorFlags,
+                                   const AString & compilerOptions,
+                                   const AString & compilerOptionsDeoptimized,
+                                   const AString & preprocessor,
+                                   const AString & preprocessorOptions,
+                                   const AString & objectName,
+                                   const AString & objectInput,
+                                   const AString & pchObjectName );
 
-	CompilerNode *	m_Compiler;
-	AString			m_CompilerArgs;
-	AString			m_CompilerArgsDeoptimized;
-	AString			m_CompilerOutputPath;
-	Dependencies	m_CompilerForceUsing;
-	ObjectNode *	m_PrecompiledHeader;
-	AString			m_ObjExtensionOverride;
-    AString         m_CompilerOutputPrefix;
-	bool			m_DeoptimizeWritableFiles;
-	bool			m_DeoptimizeWritableFilesWithToken;
-	bool			m_AllowDistribution;
-	bool			m_AllowCaching;
-	CompilerNode *	m_Preprocessor;
-	AString			m_PreprocessorArgs;
-	AString			m_BaseDirectory;
-	AString			m_ExtraPDBPath;
-	AString			m_ExtraASMPath;
+    // Exposed Properties
+    AString             m_Compiler;
+    AString             m_CompilerOptions;
+    AString             m_CompilerOptionsDeoptimized;
+    AString             m_CompilerOutputPath;
+    AString             m_CompilerOutputPrefix;
+    AString             m_CompilerOutputExtension;
+    Array< AString >    m_CompilerInputPath;
+    Array< AString >    m_CompilerInputPattern;
+    Array< AString >    m_CompilerInputExcludePath;
+    Array< AString >    m_CompilerInputExcludedFiles;
+    Array< AString >    m_CompilerInputExcludePattern;
+    Array< AString >    m_CompilerInputFiles;
+    Array< AString >    m_CompilerInputUnity;
+    AString             m_CompilerInputFilesRoot;
+    Array< AString >    m_CompilerForceUsing;
+    bool                m_CompilerInputPathRecurse          = true;
+    bool                m_DeoptimizeWritableFiles           = false;
+    bool                m_DeoptimizeWritableFilesWithToken  = false;
+    bool                m_AllowDistribution                 = true;
+    bool                m_AllowCaching                      = true;
+    AString             m_PCHInputFile;
+    AString             m_PCHOutputFile;
+    AString             m_PCHOptions;
+    AString             m_Preprocessor;
+    AString             m_PreprocessorOptions;
+    Array< AString >    m_PreBuildDependencyNames;
+
+    // Internal State
+    ObjectNode *        m_PrecompiledHeader                 = nullptr;
+    AString             m_ExtraPDBPath;
+    AString             m_ExtraASMPath;
+    uint32_t            m_ObjectListInputStartIndex         = 0;
+    uint32_t            m_ObjectListInputEndIndex           = 0;
+    uint32_t            m_NumCompilerInputUnity             = 0;
+    uint32_t            m_NumCompilerInputFiles             = 0;
 };
 
 //------------------------------------------------------------------------------
-#endif // FBUILD_GRAPH_OBJECTNODE_H

@@ -21,40 +21,39 @@ FunctionTest::FunctionTest()
 //------------------------------------------------------------------------------
 /*virtual*/ bool FunctionTest::AcceptsHeader() const
 {
-	return true;
+    return true;
 }
 
 // Commit
 //------------------------------------------------------------------------------
-/*virtual*/ bool FunctionTest::Commit( const BFFIterator & funcStartIter ) const
+/*virtual*/ bool FunctionTest::Commit( NodeGraph & nodeGraph, const BFFIterator & funcStartIter ) const
 {
-	NodeGraph & ng = FBuild::Get().GetDependencyGraph();
-	AStackString<> name;
-	if ( GetNameForNode( funcStartIter, TestNode::GetReflectionInfoS(), name ) == false )
-	{
-		return false;
-	}
-
-	if ( ng.FindNode( name ) )
-	{
-		Error::Error_1100_AlreadyDefined( funcStartIter, this, name );
-		return false;
-	}
-
-	TestNode * testNode = ng.CreateTestNode( name );
-
-	if ( !PopulateProperties( funcStartIter, testNode ) )
-	{
-		return false;
-	}
-
-	if ( !testNode->Initialize( funcStartIter, this ) )
+    AStackString<> name;
+    if ( GetNameForNode( nodeGraph, funcStartIter, TestNode::GetReflectionInfoS(), name ) == false )
     {
         return false;
     }
 
-	// handle alias creation
-	return ProcessAlias( funcStartIter, testNode );
+    if ( nodeGraph.FindNode( name ) )
+    {
+        Error::Error_1100_AlreadyDefined( funcStartIter, this, name );
+        return false;
+    }
+
+    TestNode * testNode = nodeGraph.CreateTestNode( name );
+
+    if ( !PopulateProperties( nodeGraph, funcStartIter, testNode ) )
+    {
+        return false;
+    }
+
+    if ( !testNode->Initialize( nodeGraph, funcStartIter, this ) )
+    {
+        return false;
+    }
+
+    // handle alias creation
+    return ProcessAlias( nodeGraph, funcStartIter, testNode );
 }
 
 //------------------------------------------------------------------------------

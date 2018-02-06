@@ -1,8 +1,6 @@
 // ExeNode.h - builds an exe
 //------------------------------------------------------------------------------
 #pragma once
-#ifndef FBUILD_GRAPH_EXENODE_H
-#define FBUILD_GRAPH_EXENODE_H
 
 // Includes
 //------------------------------------------------------------------------------
@@ -15,25 +13,14 @@
 //------------------------------------------------------------------------------
 class ExeNode : public LinkerNode
 {
+    REFLECT_NODE_DECLARE( ExeNode )
 public:
-	explicit ExeNode( const AString & linkerOutputName,
-					  const Dependencies & inputLibraries,
-					  const Dependencies & otherLibraries,
-					  const AString & linkerType,
-					  const AString & linker,
-					  const AString & linkerArgs,
-					  uint32_t flags,
-					  const Dependencies & assemblyResources,
-					  const AString & importLibName,
-					  Node * linkerStampExe,
-					  const AString & linkerStampExeArgs );
-	virtual ~ExeNode();
+    explicit ExeNode();
+    virtual ~ExeNode();
 
-	static inline Node::Type GetTypeS() { return Node::EXE_NODE; }
+    static inline Node::Type GetTypeS() { return Node::EXE_NODE; }
 
-	static Node * Load( IOStream & stream );
-private:
+    static Node * Load( NodeGraph & nodeGraph, IOStream & stream );
 };
 
 //------------------------------------------------------------------------------
-#endif // FBUILD_GRAPH_EXENODE_H

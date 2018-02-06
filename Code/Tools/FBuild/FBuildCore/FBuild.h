@@ -1,8 +1,6 @@
 // FBuild.cpp - The main FBuild interface class
 //------------------------------------------------------------------------------
 #pragma once
-#ifndef FBUILD_FBUILD_H
-#define FBUILD_FBUILD_H
 
 // Includes
 //------------------------------------------------------------------------------
@@ -20,56 +18,55 @@
 //------------------------------------------------------------------------------
 class BFFMacros;
 class Client;
+class Dependencies;
 class FileStream;
 class ICache;
+class IOStream;
 class JobQueue;
 class Node;
 class NodeGraph;
+class SettingsNode;
 
 // FBuild
 //------------------------------------------------------------------------------
 class FBuild : public Singleton< FBuild >
 {
 public:
-	explicit FBuild( const FBuildOptions & options = FBuildOptions() );
-	~FBuild();
+    explicit FBuild( const FBuildOptions & options = FBuildOptions() );
+    ~FBuild();
 
-	// initialize the dependency graph, using the BFF config file
-	// OR a previously saved NodeGraph DB (if available/matching the BFF)
-	bool Initialize( const char * nodeGraphDBFile = nullptr );
+    // initialize the dependency graph, using the BFF config file
+    // OR a previously saved NodeGraph DB (if available/matching the BFF)
+    bool Initialize( const char * nodeGraphDBFile = nullptr );
 
-	// build a target
-	bool Build( const AString & target );
-	bool Build( const Array< AString > & targets );
-	bool Build( Node * nodeToBuild );
+    // build a target
+    bool Build( const AString & target );
+    bool Build( const Array< AString > & targets );
+    bool Build( Node * nodeToBuild );
 
-	// after a build we can store progress/parsed rules for next time
-	bool SaveDependencyGraph( const char * nodeGraphDBFile ) const;
+    // after a build we can store progress/parsed rules for next time
+    bool SaveDependencyGraph( const char * nodeGraphDBFile ) const;
+    void SaveDependencyGraph( IOStream & memorySteam, const char* nodeGraphDBFile ) const;
 
-	const FBuildOptions & GetOptions() const { return m_Options; }
-	NodeGraph & GetDependencyGraph() const { return *m_DependencyGraph; }
-	
-	const AString & GetWorkingDir() const { return m_Options.GetWorkingDir(); }
+    const FBuildOptions & GetOptions() const { return m_Options; }
 
-	static const char * GetDefaultBFFFileName();
+    const AString & GetWorkingDir() const { return m_Options.GetWorkingDir(); }
 
-	const AString & GetCachePath() const { return m_CachePath; }
-	void SetCachePath( const AString & path );
+    static const char * GetDefaultBFFFileName();
 
-	const AString & GetCachePluginDLL() const { return m_CachePluginDLL; }
-	void SetCachePluginDLL( const AString & plugin ) { m_CachePluginDLL = plugin; }
+    inline const SettingsNode * GetSettings() const { return m_Settings; }
 
-	void GetCacheFileName( uint64_t keyA, uint32_t keyB, uint64_t keyC,
-						   AString & path ) const;
+    void GetCacheFileName( uint64_t keyA, uint32_t keyB, uint64_t keyC, uint64_t keyD,
+                           AString & path ) const;
 
-	void SetWorkerList( const Array< AString > & workers )		{ m_WorkerList = workers; }
-	const Array< AString > & GetWorkerList() const { return m_WorkerList; }
+    void SetEnvironmentString( const char * envString, uint32_t size, const AString & libEnvVar );
+    inline const char * GetEnvironmentString() const            { return m_EnvironmentString; }
+    inline uint32_t     GetEnvironmentStringSize() const        { return m_EnvironmentStringSize; }
 
-	void SetEnvironmentString( const char * envString, uint32_t size, const AString & libEnvVar );
-	inline const char * GetEnvironmentString() const			{ return m_EnvironmentString; }
-	inline uint32_t		GetEnvironmentStringSize() const		{ return m_EnvironmentStringSize; }
+    void DisplayTargetList() const;
+    bool DisplayDependencyDB( const Array< AString > & targets ) const;
 
-	class EnvironmentVarAndHash
+    class EnvironmentVarAndHash
     {
     public:
         EnvironmentVarAndHash( const char * name, uint32_t hash )
@@ -78,69 +75,75 @@ public:
         {}
 
         inline const AString &              GetName() const             { return m_Name; }
-        inline uint32_t                     GetHash() const          	{ return m_Hash; }
+        inline uint32_t                     GetHash() const             { return m_Hash; }
 
     protected:
-        AString		m_Name;
-        uint32_t 	m_Hash;
+        AString     m_Name;
+        uint32_t    m_Hash;
     };
 
-    bool ImportEnvironmentVar( const char * name, AString & value, uint32_t & hash );
+    bool ImportEnvironmentVar( const char * name, bool optional, AString & value, uint32_t & hash );
     const Array< EnvironmentVarAndHash > & GetImportedEnvironmentVars() const { return m_ImportedEnvironmentVars; }
 
-	void GetLibEnvVar( AString & libEnvVar ) const;
+    void GetLibEnvVar( AString & libEnvVar ) const;
 
-	// stats - read access
-	const FBuildStats & GetStats() const	{ return m_BuildStats; }
-	// stats - write access
-	FBuildStats & GetStatsMutable()			{ return m_BuildStats; }
+    // stats - read access
+    const FBuildStats & GetStats() const    { return m_BuildStats; }
+    // stats - write access
+    FBuildStats & GetStatsMutable()         { return m_BuildStats; }
 
-	// attempt to cleanly stop the build
-	static inline void AbortBuild() { s_StopBuild = true; }
-	static		  void OnBuildError();
-	static inline bool GetStopBuild() { return s_StopBuild; }
+    // attempt to cleanly stop the build
+    static        void AbortBuild();
+    static        void OnBuildError();
+    static inline bool GetStopBuild() { return s_StopBuild; }
+    static inline volatile bool * GetAbortBuildPointer() { return &s_AbortBuild; }
 
-	inline ICache * GetCache() const { return m_Cache; }
+    inline ICache * GetCache() const { return m_Cache; }
+
+    static bool GetTempDir( AString & outTempDir );
+
+    bool CacheOutputInfo() const;
+    bool CacheTrim() const;
 
 private:
-	void UpdateBuildStatus( const Node * node );
+    bool GetTargets( const Array< AString > & targets, Dependencies & outDeps ) const;
 
-	static bool s_StopBuild;
+    void UpdateBuildStatus( const Node * node );
 
-	BFFMacros * m_Macros;
+    static bool s_StopBuild;
+    static volatile bool s_AbortBuild;  // -fastcancel - TODO:C merge with StopBuild
 
-	NodeGraph * m_DependencyGraph;
-	JobQueue * m_JobQueue;
-	Client * m_Client; // manage connections to worker servers
+    BFFMacros * m_Macros;
 
-	AString m_DependencyGraphFile;
-	AString m_CachePluginDLL;
-	AString m_CachePath;
-	ICache * m_Cache;
+    NodeGraph * m_DependencyGraph;
+    JobQueue * m_JobQueue;
+    Client * m_Client; // manage connections to worker servers
 
-	Timer m_Timer;
-	float m_LastProgressOutputTime;
-	float m_LastProgressCalcTime;
-	float m_SmoothedProgressCurrent;
-	float m_SmoothedProgressTarget;
+    AString m_DependencyGraphFile;
+    ICache * m_Cache;
 
-	FBuildStats m_BuildStats;
+    SettingsNode * m_Settings;
 
-	FBuildOptions m_Options;
+    Timer m_Timer;
+    float m_LastProgressOutputTime;
+    float m_LastProgressCalcTime;
+    float m_SmoothedProgressCurrent;
+    float m_SmoothedProgressTarget;
 
-	WorkerBrokerage m_WorkerBrokerage;
+    FBuildStats m_BuildStats;
 
-	Array< AString > m_WorkerList;
+    FBuildOptions m_Options;
 
-	AString m_OldWorkingDir;
+    WorkerBrokerage m_WorkerBrokerage;
 
-	// a double-null terminated string
-	char *		m_EnvironmentString;
-	uint32_t	m_EnvironmentStringSize; // size excluding last null
-	AString		m_LibEnvVar; // LIB= value
+    AString m_OldWorkingDir;
 
-	Array< EnvironmentVarAndHash > m_ImportedEnvironmentVars;
+    // a double-null terminated string
+    char *      m_EnvironmentString;
+    uint32_t    m_EnvironmentStringSize; // size excluding last null
+    AString     m_LibEnvVar; // LIB= value
+
+    Array< EnvironmentVarAndHash > m_ImportedEnvironmentVars;
 };
 
 //------------------------------------------------------------------------------
-#endif // FBUILD_FBUILD_H

@@ -61,18 +61,18 @@
     ^array = { ^a, ^b, ^c }
     ^array = {^a,^b,^c}
     ^array =
-        {
-        ^a
-        ,
-        ^b
-        ,
-        ^c
-        }
+            {
+            ^a
+            ,
+            ^b
+            ,
+            ^c
+            }
 }
 
 ; struct with parent scope
 
-.var = 12
+.var = 'first definition'
 .struct =
 [
     .value = ^var

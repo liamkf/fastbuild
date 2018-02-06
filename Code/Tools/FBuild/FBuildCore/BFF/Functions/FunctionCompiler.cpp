@@ -27,47 +27,46 @@ FunctionCompiler::FunctionCompiler()
 //------------------------------------------------------------------------------
 /*virtual*/ bool FunctionCompiler::AcceptsHeader() const
 {
-	return true;
+    return true;
 }
 
 // NeedsHeader
 //------------------------------------------------------------------------------
 /*virtual*/ bool FunctionCompiler::NeedsHeader() const
 {
-	return true;
+    return true;
 }
 
 // Commit
 //------------------------------------------------------------------------------
-/*virtual*/ bool FunctionCompiler::Commit( const BFFIterator & funcStartIter ) const
+/*virtual*/ bool FunctionCompiler::Commit( NodeGraph & nodeGraph, const BFFIterator & funcStartIter ) const
 {
-	NodeGraph & ng = FBuild::Get().GetDependencyGraph();
-	AStackString<> name;
-	if ( GetNameForNode( funcStartIter, CompilerNode::GetReflectionInfoS(), name ) == false )
-	{
-		return false;
-	}
-
-	if ( ng.FindNode( name ) )
-	{
-		Error::Error_1100_AlreadyDefined( funcStartIter, this, name );
-		return false;
-	}
-
-	CompilerNode * compilerNode = ng.CreateCompilerNode( name );
-
-	if ( !PopulateProperties( funcStartIter, compilerNode ) )
-	{
-		return false;
-	}
-
-	if ( !compilerNode->Initialize( funcStartIter, this ) )
+    AStackString<> name;
+    if ( GetNameForNode( nodeGraph, funcStartIter, CompilerNode::GetReflectionInfoS(), name ) == false )
     {
         return false;
     }
 
-	// handle alias creation
-	return ProcessAlias( funcStartIter, compilerNode );
+    if ( nodeGraph.FindNode( name ) )
+    {
+        Error::Error_1100_AlreadyDefined( funcStartIter, this, name );
+        return false;
+    }
+
+    CompilerNode * compilerNode = nodeGraph.CreateCompilerNode( name );
+
+    if ( !PopulateProperties( nodeGraph, funcStartIter, compilerNode ) )
+    {
+        return false;
+    }
+
+    if ( !compilerNode->Initialize( nodeGraph, funcStartIter, this ) )
+    {
+        return false;
+    }
+
+    // handle alias creation
+    return ProcessAlias( nodeGraph, funcStartIter, compilerNode );
 }
 
 //------------------------------------------------------------------------------

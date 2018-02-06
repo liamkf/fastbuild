@@ -1,8 +1,6 @@
 // CSNode.h - a node that builds a C# assembly
 //------------------------------------------------------------------------------
 #pragma once
-#ifndef FBUILD_GRAPH_CSNODE_H
-#define FBUILD_GRAPH_CSNODE_H
 
 // Includes
 //------------------------------------------------------------------------------
@@ -12,38 +10,52 @@
 // Forward Declarations
 //------------------------------------------------------------------------------
 class Args;
+class BFFIterator;
+class Function;
 
 // CSNode
 //------------------------------------------------------------------------------
 class CSNode : public FileNode
 {
+    REFLECT_NODE_DECLARE( CSNode )
 public:
-	explicit CSNode( const AString & compilerOutput,
-					 const Dependencies & inputNodes,
-					 const AString & compiler,
-					 const AString & compilerArgs,
-					 const Dependencies & extraRefs );
-	virtual ~CSNode();
+    explicit CSNode();
+    bool Initialize( NodeGraph & nodeGraph, const BFFIterator & iter, const Function * function );
+    virtual ~CSNode();
 
-	static inline Node::Type GetTypeS() { return Node::CS_NODE; }
+    static inline Node::Type GetTypeS() { return Node::CS_NODE; }
 
-	virtual void Save( IOStream & stream ) const;
-	static Node * Load( IOStream & stream );
+    virtual void Save( IOStream & stream ) const override;
+    static Node * Load( NodeGraph & nodeGraph, IOStream & stream );
 private:
-	virtual bool DoDynamicDependencies( bool forceClean );
-	virtual BuildResult DoBuild( Job * job );
+    virtual bool DoDynamicDependencies( NodeGraph & nodeGraph, bool forceClean ) override;
+    virtual BuildResult DoBuild( Job * job ) override;
 
-	void EmitCompilationMessage( const Args & fullArgs ) const;
+    inline Node * GetCompiler() const { return m_StaticDependencies[ 0 ].GetNode(); }
 
-	bool BuildArgs( Args & fullArgs ) const;
-	void GetInputFiles( Args & fullArgs, const AString & pre, const AString & post ) const;
-	void GetExtraRefs( Args & fullArgs, const AString & pre, const AString & post ) const;
+    void EmitCompilationMessage( const Args & fullArgs ) const;
 
-	AString m_CompilerPath;
-	AString m_CompilerArgs;
+    bool BuildArgs( Args & fullArgs ) const;
+    void GetInputFiles( Args & fullArgs, const AString & pre, const AString & post ) const;
+    void GetExtraRefs( Args & fullArgs, const AString & pre, const AString & post ) const;
 
-	Dependencies m_ExtraRefs;
+    // Exposed Properties
+    AString             m_Compiler;
+    AString             m_CompilerOptions;
+    AString             m_CompilerOutput;
+    Array< AString >    m_CompilerInputPath;
+    bool                m_CompilerInputPathRecurse;
+    Array< AString >    m_CompilerInputPattern;
+    Array< AString >    m_CompilerInputExcludePath;
+    Array< AString >    m_CompilerInputExcludedFiles;
+    Array< AString >    m_CompilerInputExcludePattern;
+    Array< AString >    m_CompilerInputFiles;
+    Array< AString >    m_CompilerReferences;
+    Array< AString >    m_PreBuildDependencyNames;
+
+    // Internal State
+    uint32_t            m_NumCompilerInputFiles;
+    uint32_t            m_NumCompilerReferences;
 };
 
 //------------------------------------------------------------------------------
-#endif // FBUILD_GRAPH_CSNODE_H
