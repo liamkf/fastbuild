@@ -4,6 +4,7 @@ if
 import
 in
 include
+not
 once
 undef
 
@@ -58,6 +59,12 @@ Environment
 ExecArguments
 ExecExecutable
 ExecInput
+ExecInputPath
+ExecInputPattern
+ExecInputPathRecurse
+ExecInputExcludePath
+ExecInputExcludedFiles
+ExecInputExcludePattern	
 ExecOutput
 ExecReturnCode
 ExecUseStdOutAsOutput

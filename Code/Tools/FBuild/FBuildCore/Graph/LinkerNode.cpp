@@ -443,7 +443,7 @@ bool LinkerNode::BuildArgs( Args & fullArgs ) const
                 continue;
             }
 
-            if ( IsStartOfLinkerArg_MSVC(token, "LIBPATH:") == true )
+            if ( IsStartOfLinkerArg_MSVC( token, "LIBPATH:" ) == true )
             {
                 // get remainder of token after arg
                 const char * valueStart = token.Get() + 8 + 1;
@@ -941,10 +941,8 @@ bool LinkerNode::GetOtherLibraries( NodeGraph & nodeGraph,
 
     // extract lib path from system if present
     AStackString< 1024 > libVar;
-    if ( Env::GetEnvVariable( "LIB", libVar ) )
-    {
-        libVar.Tokenize( envLibPaths, ';' );
-    }
+    FBuild::Get().GetLibEnvVar( libVar );
+    libVar.Tokenize( envLibPaths, ';' );
 
     const AString * const end = tokens.End();
     for ( const AString * it = tokens.Begin(); it != end; ++it )

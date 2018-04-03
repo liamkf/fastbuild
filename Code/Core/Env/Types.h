@@ -2,7 +2,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#if defined ( __LINUX__ )
+#if defined( __LINUX__ ) || defined( __OSX__ )
     #include <sys/types.h>
 #endif
 
@@ -107,6 +107,13 @@ typedef signed int          int32_t;
     #ifndef nullptr
         #define nullptr (0)
     #endif
+#endif
+
+// Versions of Visual Studio prior to 2017 don't manage noexcept properly
+#if defined( _MSC_VER ) && ( _MSC_VER < 1910 ) && !defined( __clang__ )
+    #define NOEXCEPT
+#else
+    #define NOEXCEPT noexcept
 #endif
 
 #ifndef LONGLONG

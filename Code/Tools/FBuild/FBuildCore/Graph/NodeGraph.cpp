@@ -192,7 +192,7 @@ NodeGraph::LoadResult NodeGraph::Load( const char * nodeGraphDBFile )
 
     // Read it into memory to avoid lots of tiny disk accesses
     const size_t fileSize = (size_t)fs.GetFileSize();
-    AutoPtr< char > memory( FNEW( char[ fileSize ] ) );
+    AutoPtr< char > memory( (char *)ALLOC( fileSize ) );
     if ( fs.ReadBuffer( memory.Get(), fileSize ) != fileSize )
     {
         return LoadResult::LOAD_ERROR;
@@ -882,28 +882,13 @@ VCXProjectNode * NodeGraph::CreateVCXProjectNode( const AString & projectOutput,
 
 // CreateSLNNode
 //------------------------------------------------------------------------------
-SLNNode * NodeGraph::CreateSLNNode( const AString & solutionOutput,
-                                    const AString & solutionBuildProject,
-                                    const AString & solutionVisualStudioVersion,
-                                    const AString & solutionMinimumVisualStudioVersion,
-                                    const Array< VSProjectConfig > & configs,
-                                    const Array< VCXProjectNode * > & projects,
-                                    const Array< SLNDependency > & slnDeps,
-                                    const Array< SLNSolutionFolder > & folders )
+SLNNode * NodeGraph::CreateSLNNode( const AString & name )
 {
     ASSERT( Thread::IsMainThread() );
+    ASSERT( IsCleanPath( name ) );
 
-    AStackString< 1024 > fullPath;
-    CleanPath( solutionOutput, fullPath );
-
-    SLNNode * node = FNEW( SLNNode( fullPath,
-                                    solutionBuildProject,
-                                    solutionVisualStudioVersion,
-                                    solutionMinimumVisualStudioVersion,
-                                    configs,
-                                    projects,
-                                    slnDeps,
-                                    folders ) );
+    SLNNode * node = FNEW( SLNNode() );
+    node->SetName( name );
     AddNode( node );
     return node;
 }
@@ -1265,14 +1250,14 @@ bool NodeGraph::CheckDependencies( Node * nodeToBuild, const Dependencies & depe
         while ( *src == NATIVE_SLASH || *src == OTHER_SLASH ) { ++src; } // strip leading slashes
     #endif
 
-    const char* lowestRemovableChar = cleanPath.Get();
-    if (isFullPath)
+    const char * lowestRemovableChar = cleanPath.Get();
+    if ( isFullPath )
     {
-#if defined( __WINDOWS__ )
-        lowestRemovableChar += 3; // e.g. "c:\"
-#else
-        lowestRemovableChar += 1; // e.g. "/"
-#endif
+        #if defined( __WINDOWS__ )
+            lowestRemovableChar += 3; // e.g. "c:\"
+        #else
+            lowestRemovableChar += 1; // e.g. "/"
+        #endif
     }
 
     while ( src < srcEnd )
